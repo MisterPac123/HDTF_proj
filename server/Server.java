@@ -19,7 +19,7 @@ public class Server {
                 Socket socket = serverSocket.accept();
                 System.out.println("New client connected");
 
-                //new ServerThrd(socket).start();
+                new ServerThrd(socket).start();
             }
 
         } catch (IOException ex) {
