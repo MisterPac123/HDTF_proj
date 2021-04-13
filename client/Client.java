@@ -4,12 +4,15 @@ import java.util.Scanner;
 
 import java.net.*;
 import java.io.*;
-
+import java.util.StringJoiner;
 
 public class Client {
 
     private static String userID;
     private static String hostname;
+
+    static final int mapSize = 100;
+
 
     private static class Client_connection{
         private final BufferedReader receiver;
@@ -28,6 +31,7 @@ public class Client {
 
         //Check arguments
         int port;
+        int epoch;
         if (args.length == 3 && args[0] instanceof String && args[1] instanceof String) {
             userID = args[0];
             hostname = args[1];
@@ -52,18 +56,22 @@ public class Client {
             String text;
             System.out.println("\nWelcome " + userID + "\n\n");
             do {
-                System.out.println("Choose option:\n     1 - Request Location Proof\n     2 - exit");
+                System.out.println("Choose option:\n     1 - Request Location Proof\n     2 - add Location");
                 text = reader.readLine();
-
-                switch (text) {
-                    case "1":
-                        requestLocationProof();
-                        break;
-                    case "changeLocation":
-                        //changeLocation(axisX, axisY);
-
+                String[] command = text.split(" ");
+                switch (command[0]) {
+                    case "1" -> {
+                        epoch = Integer.parseInt(command[1]);
+                        requestLocationProof(epoch);
+                    }
+                    case "2" -> {
+                        epoch = Integer.parseInt(command[1]);
+                        int axisX = Integer.parseInt(command[2]);
+                        int axisY = Integer.parseInt(command[3]);
+                        addLocation(epoch, axisX, axisY);
+                    }
                 }
-            } while (!text.equals("2"));
+            } while (!text.equals("3"));
 
         } catch (IOException e) {
             e.printStackTrace();
@@ -73,12 +81,12 @@ public class Client {
     }
 
 
-    //#########################
-    //## Secondary functions ##
-    //#########################
+    //####################
+    //## Main functions ##
+    //####################
 
-    private static void requestLocationProof() throws IOException {
-        int[] ports = getClientConnections();
+    private static void requestLocationProof(int epoch) throws IOException {
+        int[] ports = getClientConnections(epoch);
 
         for(int p : ports){
             if(p != 0) {
@@ -100,6 +108,15 @@ public class Client {
         }
     }
 
+    private static void addLocation(int epoch, int axisX, int axisY) throws IOException {
+        Map map= new Map();
+        map.addPosition(userID, epoch, axisX, axisY);
+    }
+
+
+    //#########################
+    //## Secondary functions ##
+    //#########################
     private static Client_connection connectToClient(int client_port) throws IOException {
         Client_connection client;
         Socket socket = new Socket(hostname, client_port);
@@ -114,22 +131,8 @@ public class Client {
         return client;
     }
 
-    private static int[] getClientConnections() throws IOException {
-        //versao teste!! tem que ir buscar so os users proximos
-        int[] ports = new int[20];
-        int i = 0;
-
-        File usersPorts = new File("usersPorts.txt");
-        Scanner myReader = new Scanner(usersPorts);
-        while (myReader.hasNextLine()) {
-            String[] data = myReader.nextLine().split(" ");
-            if (!data[0].equals(userID)){
-                int port = Integer.parseInt(data[1]);
-                ports[i] = (port);
-                i++;
-            }
-        }
-        myReader.close();
-        return ports;
+    private static int[] getClientConnections(int epoch){
+        Map map= new Map();
+        return map.getNearbyUsersPorts(userID, epoch);
     }
 }
