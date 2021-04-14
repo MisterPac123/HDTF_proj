@@ -34,9 +34,10 @@ In root folder (HDTF_proj):
 ==================================================================
 // All Dependency Classes will also be compliled. 
 
->> javac -cp server/gson-2.6.2.jar: server/SecureServer.java 
+>> javac -cp server/gson-2.6.2.jar: server/Server.java 
 
->> java -cp server/gson-2.6.2.jar: server.SecureServer 8000 keys/bob.privkey keys/bob.pubkey keys/alice.pubkey keys/secret.key
+
+>> java -cp server/gson-2.6.2.jar: server.Server 8000
 
 ==================================================================
 							[CLIENT]
@@ -59,19 +60,4 @@ In root folder (HDTF_proj):
 ==================================================================
 
 In root folder (HDTF_proj):
-Dont forget to change package name in generators(key_generators):
-(AESKeyGenerator.java | RSAKeyGenerator.java | DataUtils.java)
 
-
->> javac key_generators/AESKeyGenerator.java
->> javac key_generators/RSAKeyGenerator.java
-
-## Begin by generating a new AES Key:
->> java key_generators.AESKeyGenerator w keys/aes.key
-
-## Asymmetric ciphers:
->> java key_generators.RSAKeyGenerator w keys/server_priv.key keys/server_pub.key
->> java key_generators.RSAKeyGenerator w keys/client_priv.key keys/client_pub.key
-
-
->> java -cp server/gson-2.6.2.jar: server.SecureServer 8000 keys/server_priv.key keys/server_pub.key keys/client_pub.key keys/aes.key

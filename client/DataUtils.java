@@ -1,4 +1,4 @@
-package key_generators;
+package client;
 
 public final class DataUtils {
     private static final char[] HEX_ARRAY = "0123456789ABCDEF".toCharArray();

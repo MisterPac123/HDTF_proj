@@ -16,6 +16,7 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class ClientServerCommunication extends Thread {
+//public class ClientServerCommunication{
     private String clientRequestString;
 
     private int port;
@@ -38,6 +39,7 @@ public class ClientServerCommunication extends Thread {
     private ArrayList<Long> timestampsAlreadyUsed = new ArrayList<Long>();
     private InetAddress serverAddress = null;
     private int serverPort = 8000;
+    private volatile boolean exit = false;
 
     public ClientServerCommunication(String userID, int port, 
         PrivateKey clientPrivateKey, PublicKey clientPublicKey, 
@@ -60,16 +62,127 @@ public class ClientServerCommunication extends Thread {
         this.clientRequestString = clientRequestString;
 
     };
+    public void run()
+    {
+        System.out.println(" Back.");
+    }
 
-    public void run() {
-        System.out.println(
-        " =================================================\n"
-        + " =================================================\n");
-        System.out.println("CLIENT -> SERVER Thread \n");
-        System.out.println(
-        " =================================================\n"
-        + " =================================================\n");
+    public void run2() {
 
+
+        //====================================================== //
+        //   [Create Start Communication Request Message ]       //
+        //====================================================== //
+
+        //------------------------------------------------------------- //
+        // Client sends a non secure message to server indicating       //
+        // its identity. The message does not need to be encrypted or   //
+        // authenticated now. Its just for server to know where to      //
+        // find client's public key and symmentric key.                 //
+        // Lets now consider that a userA says to Server that           //
+        // it is UserB.                                                 //
+        // While in the secure communication message exchange, userA    //
+        // (that says its userB) can NOT proof its identity(false one). //
+        // This is because userA does not have access to usersB private //
+        // key so it can produce a false Signature.                     //
+        // If this happens, Server can NOT confirm user's authenticity  //
+        // and imediately knows that something wrong is going on.       //
+        //------------------------------------------------------------- //
+
+        System.out.println(
+        "=================================================="+ 
+        "==================================================\n");
+        System.out.println("[Create Start Communication Request Message]\n");
+
+        System.out.println(
+        "=================================================="+ 
+        "==================================================\n");
+
+        JsonObject startCommunicationRequestJson = createJsonMessage(this.userID, 
+            "Hey I am " + this.userID + " and I Want To Start A Connection.");
+        
+        // Encode request in base64
+        byte[] startCommunicationRequest_bytes = startCommunicationRequestJson.toString().getBytes();
+        String startCommunicationRequest_B64String = Base64.getEncoder().encodeToString(startCommunicationRequest_bytes);
+        byte[] startCommunicationRequest_B64 = startCommunicationRequest_B64String.getBytes();
+
+
+        Socket clientSocket = null;
+        try {
+            clientSocket = new Socket(this.serverAddress, this.serverPort);
+            DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
+            //System.out.println("\nByte array printed before sending to server:\n");
+
+
+            System.out.println("Sending Request");
+            outToServer.writeInt(startCommunicationRequest_B64.length); // write length of the message
+            outToServer.write(startCommunicationRequest_B64);      
+        }
+
+        catch (Exception ex) {  
+            System.err.println("Error Creating Server Socket. Check if Server is Running Correctly!\n");  
+            System.err.println("Could not Send Message to Server Sucessfully.\n");  
+            return;
+        } 
+
+        //====================================================== //
+        //   [Recevive Start Communication Request Message ]      //
+        //====================================================== //
+
+        String startReplyString = null;
+        try{
+            DataInputStream inStartReplyFromServer =
+            new DataInputStream(clientSocket.getInputStream());    
+
+            int startReplyLength = inStartReplyFromServer.readInt(); 
+            byte[] inStartReplyFromServer_B64_bytes = new byte[startReplyLength];  
+
+            for(int i = 0; i < inStartReplyFromServer_B64_bytes.length; i++) {
+                inStartReplyFromServer_B64_bytes[i] = inStartReplyFromServer.readByte();
+            }
+            
+            //----------------------------------------------------- //
+            //              [Decode Request JSON ]                  //
+            //----------------------------------------------------- //
+            
+            byte[] inStartReply_bytes_decoded =  Base64.getMimeDecoder().decode(inStartReplyFromServer_B64_bytes);
+
+            startReplyString = new String(inStartReply_bytes_decoded);
+            System.out.println("inStartRequest_string" + startReplyString);
+      
+
+        }
+
+        catch (Exception ex) {  
+            System.err.println("Error Decoding Client Request Message.\n");
+            return;
+        } 
+        //----------------------------------------------------- //
+        //                  [Parse CM JSON ]                    //
+        //----------------------------------------------------- //
+        JsonParser parser = new JsonParser();
+        JsonObject startReplyStringJSON = parser.parse​(startReplyString).getAsJsonObject();
+        
+        String from = null, to = null, timestampReceived = null, startMessage = null;
+        {
+            JsonObject infoJson = startReplyStringJSON.getAsJsonObject("info");
+            timestampReceived = infoJson.get("timestamp").getAsString();
+            from = infoJson.get("from").getAsString();
+            to = infoJson.get("to").getAsString();
+            startMessage = infoJson.get("message").getAsString();
+
+        }       
+
+        System.out.println(
+        "=================================================="+ 
+        "==================================================\n");
+        System.out.println("[Starting Secure Communication]\n");
+
+        System.out.println(
+        "=================================================="+ 
+        "==================================================\n");
+
+        
         //====================================================== //
         //              [Create Request Message ]                //
         //====================================================== //
@@ -81,7 +194,7 @@ public class ClientServerCommunication extends Thread {
         // IMPLEMENT A SWITCH HERE!
         //----------------------------------------------------- //
 
-        JsonObject requestJson = createRequestMessage(this.clientRequestString);
+        JsonObject requestJson = createJsonMessage(this.userID,this.clientRequestString);
         byte[] clientData = requestJson.toString().getBytes();
 
 
@@ -197,7 +310,7 @@ public class ClientServerCommunication extends Thread {
         //          [Create Request Message With CK, CM, Signature]     //
         //------------------------------------------------------------  //
 
-        JsonParser parser = new JsonParser();
+        //JsonParser parser = new JsonParser();
         JsonObject request = parser.parse("{}").getAsJsonObject();
         {
             JsonObject infoJson = parser.parse("{}").getAsJsonObject();
@@ -225,9 +338,9 @@ public class ClientServerCommunication extends Thread {
         System.out.println("Client started.");
         System.out.println("Connection Sucessfully Established With Server." );    
 
-        Socket clientSocket = null;
+        
         try {
-            clientSocket = new Socket(this.serverAddress, this.serverPort);
+            //clientSocket = new Socket(this.serverAddress, this.serverPort);
             DataOutputStream outToServer = new DataOutputStream(clientSocket.getOutputStream());
             //System.out.println("\nByte array printed before sending to server:\n");
 
@@ -371,7 +484,7 @@ public class ClientServerCommunication extends Thread {
 
         JsonObject cm_json = parser.parse​(message_response).getAsJsonObject();
         
-        String from = null, to = null, timestampReceived = null, serverMessage = null;
+        from = null; to = null; timestampReceived = null; String serverMessage = null;
         {
             JsonObject infoJson = cm_json.getAsJsonObject("info");
             timestampReceived = infoJson.get("timestamp").getAsString();
@@ -466,6 +579,7 @@ public class ClientServerCommunication extends Thread {
 
         }
         
+        
         //----------------------------------------------------- //
         //              [Close Socket and Reset]                //
         //----------------------------------------------------- //
@@ -482,18 +596,19 @@ public class ClientServerCommunication extends Thread {
         } 
 
 
-
-
     }
 
-    private static JsonObject createRequestMessage(String clientRequestString){
+    //----------------------------------------------------- //
+    //             [Function To Create a JSON]              //
+    //----------------------------------------------------- //
+    private static JsonObject createJsonMessage(String userID, String clientRequestString){
         
         
         JsonParser parser = new JsonParser();
         JsonObject requestJson = parser.parse​("{}").getAsJsonObject();
         {
             JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
-            infoJson.addProperty("from", "Client");
+            infoJson.addProperty("from", userID);
             requestJson.add("info", infoJson);
             
             infoJson.addProperty("to", "Server");

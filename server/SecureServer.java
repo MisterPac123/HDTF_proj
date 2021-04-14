@@ -27,116 +27,258 @@ import java.awt.*;
 
 
 
-public class SecureServer{
+public class SecureServer extends Thread {
+//public class SecureServer{
+
+	private static String serverPrivateKeypath = null;
+	private static String serverPublicKeypath = null;
+	private static String clientPublicKeypath = null;
+	private static String symmetricKeyPath = null; 
+	
+	
+   	private static PrivateKey serverPrivateKey = null;
+    private static PublicKey serverPublicKey = null;
+    private static PublicKey clientPublicKey = null;
+    private static Key symmetricKey = null;
 
 
 	private static ArrayList<Long> timestampsAlreadyUsed = new ArrayList<Long>();
 
-	public static void main(String[] args) throws IOException, Exception{
-		//-------------------------------------------------------------- //
-		//mvn compile exec:java -Dmainclass=pt.tecnico.SecureServer
-		// -Dexec.args="8000 keys/bob.privkey keys/bob.pubkey keys/alice.pubkey keys/secret.key"
-		//-------------------------------------------------------------- //
 
-		if (args.length < 5) {
+	private static int clientPort = 0;
+	// Not Necessary
+    //private static InetAddress serverAddress = null;
+    private static int serverPort = 8000;
 
-			System.err.println("Argument(s) missing!");
-			System.err.printf("Usage: java %s serverPort %s serverPrivateKey %s serverPublicKey %s clientPublicKey %s", SecureServer.class.getName());
-			return;
-		}
 
-		int clientPort = 0;
-		InetAddress serverAddress = null;
 
-		final int serverPort = Integer.parseInt(args[0]);
-		final String serverPrivateKeypath = args[1];
-		final String serverPublicKeypath = args[2];
-		final String clientPublicKeypath = args[3];
-		final String symmetricKeyPath = args[4];
+	final String CIPHER_ASYM = "RSA/ECB/PKCS1Padding";
+	final String CIPHER_SYM = "AES/ECB/PKCS5Padding";
+	final String DIGEST_ALGO = "SHA-256";
 
-		final String CIPHER_ASYM = "RSA/ECB/PKCS1Padding";
-		final String CIPHER_SYM = "AES/ECB/PKCS5Padding";
-		final String DIGEST_ALGO = "SHA-256";
 
+
+
+    public SecureServer(int serverPort){
+        //this.serverAddress = serverAddress;
+        this.serverPort = serverPort;
+    };
 		
 		
-       	PrivateKey serverPrivateKey = null;
-        PublicKey serverPublicKey = null;
-        PublicKey clientPublicKey = null;
-        Key symmetricKey = null;
-
-
-
-	 	//----------------------------------------------------- //
-		// 						[Read keys]						//
-		//----------------------------------------------------- //
-		try{
-
-	       	serverPrivateKey = readPrivateKey(serverPrivateKeypath);
-	        serverPublicKey = readPublicKey(serverPublicKeypath);
-	        clientPublicKey = readPublicKey(clientPublicKeypath);
-	        symmetricKey = readSecretKey(symmetricKeyPath);
-	    }
-
-	  	catch(Exception e){
-	    	System.err.println("Error while reading the keys!");
-	    }
-
-
-
- 		//----------------------------------------------------- //
-		// 		    	[Receive Bytes of Data]		     	//
-		//----------------------------------------------------- //
-		// Wait for client packets 
-		
-		
-		
-		// May have to fix this with a Queue of concurrent client requests
+	public void run() {	
 		while (true){
+			//====================================================== //
+	        //====================================================== //
+	        //   [Create Start Communication Request Message ]       //
+	        //====================================================== //
+			//====================================================== //
+	        //------------------------------------------------------------- //
+	        // Client sends a non secure message to server indicating       //
+	        // its identity. The message does not need to be encrypted or   //
+	        // authenticated now. Its just for server to know where to      //
+	        // find client's public key and symmentric key.                 //
+	        // Lets now consider that a userA says to Server that           //
+	        // it is UserB.                                                 //
+	        // While in the secure communication message exchange, userA    //
+	        // (that says its userB) can NOT proof its identity(false one). //
+	        // This is because userA does not have access to usersB private //
+	        // key so it can produce a false Signature.                     //
+	        // If this happens, Server can NOT confirm user's authenticity  //
+	        // and imediately knows that something wrong is going on.       //
+	        //------------------------------------------------------------- //
 
+	        System.out.println(
+	        "=================================================="+ 
+	        "==================================================\n");
+	        System.out.println("[Treating Start Communication Request Message]\n");
+
+	        System.out.println(
+	        "=================================================="+ 
+	        "==================================================\n");
+
+	        
+			System.out.println("Server is Listening on Port: " + this.serverPort);
+	        System.out.println("Waiting for Connections");
+
+	        ServerSocket serverSocket = null;
+	        Socket clientSocket = null;
+
+	        try{
+	        	serverSocket = new ServerSocket(this.serverPort);       	
+	        }
+	        catch (Exception ex) {  
+	            System.err.println("Error Creating Server Socket.\n");
+	            return;
+	        } 
+
+	        try{
+	        	clientSocket = serverSocket.accept();   
+	            System.out.println("Connection Sucessfully Established With Client: " 
+	        	+ clientSocket);
+	  	
+	        }
+	        catch (Exception ex) {  
+	            System.err.println("Error Creating Client Socket.\n");
+	            return;
+	        } 
+
+	         
+	        String startRequestString = null;
+	        try{
+			    DataInputStream inStartRequestFromClient =
+		        new DataInputStream(clientSocket.getInputStream());    
+
+		        int startRequestLength = inStartRequestFromClient.readInt(); 
+		        byte[] inStartRequestFromClient_B64_bytes = new byte[startRequestLength];  
+
+		        for(int i = 0; i < inStartRequestFromClient_B64_bytes.length; i++) {
+		            inStartRequestFromClient_B64_bytes[i] = inStartRequestFromClient.readByte();
+		        }
+		        
+				//----------------------------------------------------- //
+				//				[Decode Request JSON ] 					//
+				//----------------------------------------------------- //
+				
+				byte[] inStartRequest_bytes_decoded =  Base64.getMimeDecoder().decode(inStartRequestFromClient_B64_bytes);
+
+				startRequestString = new String(inStartRequest_bytes_decoded);
+				System.out.println("inStartRequest_string" + startRequestString);
+		  
+
+	        }
+
+	        catch (Exception ex) {  
+	            System.err.println("Error Decoding Client Request Message.\n");
+	            return;
+	        } 
+	        //----------------------------------------------------- //
+	        //                  [Parse CM JSON ]                    //
+	        //----------------------------------------------------- //
+	        JsonParser parser = new JsonParser();
+	        JsonObject startRequestStringJSON = parser.parse​(startRequestString).getAsJsonObject();
+	        
+	        String from = null, to = null, timestampReceived = null, startMessage = null;
+	        {
+	            JsonObject infoJson = startRequestStringJSON.getAsJsonObject("info");
+	            timestampReceived = infoJson.get("timestamp").getAsString();
+	            from = infoJson.get("from").getAsString();
+	            to = infoJson.get("to").getAsString();
+	            startMessage = infoJson.get("message").getAsString();
+
+	        }			
+
+		 	//----------------------------------------------------- //
+			// 						[Read keys]						//
+			//----------------------------------------------------- //
 			
+			this.serverPrivateKeypath = "keys/private/server/server_priv.key";
+			this.serverPublicKeypath = "keys/shared/server/server_pub.key";
+
+			this.clientPublicKeypath = "keys/shared/" + from + "/client_pub.key";
+			this.symmetricKeyPath = "keys/shared/" + from + "/aes.key";
+
+			try{
+
+		       	this.serverPrivateKey = readPrivateKey(serverPrivateKeypath);
+		        this.serverPublicKey = readPublicKey(serverPublicKeypath);
+		        this.clientPublicKey = readPublicKey(clientPublicKeypath);
+		        this.symmetricKey = readSecretKey(symmetricKeyPath);
+		    }
+
+		  	catch(Exception e){
+		    	System.err.println("Error while reading the keys!");
+		    	return;
+		    }
+	       
+
+		    //----------------------------------------------------- //
+			// 			[Reply To Client With an ACK]				//
+			//----------------------------------------------------- //
+	        JsonObject startCommunicationReplyJson = createJsonMessage(from, 
+	            "Hi! Lets Start a Secure Communication!.");
+	        
+	        // Encode request in base64
+	        byte[] startCommunicationReply_bytes = startCommunicationReplyJson.toString().getBytes();
+	        String startCommunicationReply_B64String = Base64.getEncoder().encodeToString(startCommunicationReply_bytes);
+	        byte[] startCommunicationReply_B64 = startCommunicationReply_B64String.getBytes();
+
+
+	        
+	        try {
+	            DataOutputStream outToClient = new DataOutputStream(clientSocket.getOutputStream());
+	            //System.out.println("\nByte array printed before sending to server:\n");
+
+
+	            System.out.println("Sending Request");
+	            outToClient.writeInt(startCommunicationReply_B64.length); // write length of the message
+	            outToClient.write(startCommunicationReply_B64);      
+	        }
+
+	        catch (Exception ex) {  
+	            System.err.println("Error Creating Server Socket. Check if Server is Running Correctly!\n");  
+	            System.err.println("Could not Send Message to Server Sucessfully.\n");  
+	            return;
+	        } 
+
+	        //====================================================== //
+	        //====================================================== //
+	        //   		[Starting Secure Communication]              //
+	        //====================================================== //
+	        //====================================================== //
+
+	        System.out.println(
+	        "=================================================="+ 
+	        "==================================================\n");
+	        System.out.println("[Starting Secure Communication]\n");
+
+	        System.out.println(
+	        "=================================================="+ 
+	        "==================================================\n");
+
 
 
 	 		//--------------------------------------------------------- //
-			// [Create TCP Socket And Receive Hospital Request Message] //
+			// [Create TCP Socket And Receive Client Request Message] //
 			//--------------------------------------------------------- //
 
-			System.out.println("Server is Listening on Port:\n"
-			+ " =================================================\n"
-			+ " =================================================\n");
 
-			System.out.println("Server is Listening on Port: " + serverPort);
-            System.out.println("Waiting for Connections");
-            ServerSocket serverSocket = new ServerSocket(serverPort);
-            Socket clientSocket = serverSocket.accept();
-            System.out.println("Connection Sucessfully Established With Client: " 
-            	+ clientSocket);
-
-            
-            DataInputStream inFromClient =
-                    new DataInputStream(clientSocket.getInputStream());        
-
-            int length = inFromClient.readInt(); 
-            byte[]request_B64_data = new byte[length];
-            for(int i = 0; i < request_B64_data.length; i++) {
-                request_B64_data[i] = inFromClient.readByte();
-            }
-            System.out.println("inFromClient" + inFromClient.toString());
+			System.out.println("Secure Connection Sucessfully Established With Client: " 
+	        	+ clientSocket);
 
 
-			
-			//----------------------------------------------------- //
-			//				[Decode Request JSON ] 					//
-			//----------------------------------------------------- //
-			
-			byte[] request_bytes_decoded =  Base64.getMimeDecoder().decode(request_B64_data);
-			String request_string = new String(request_bytes_decoded);
+	        String request_string = null;
+	        try{
+	        	System.out.println("SIIIIIIII");
+		        DataInputStream inFromClient =
+		                new DataInputStream(clientSocket.getInputStream());        
+		        System.out.println("ola?");
+
+		        int len = inFromClient.readInt(); 
+		        byte[] request_B64_data = new byte[len];
+		        System.out.println("len" + len);
+
+		        for(int i = 0; i < request_B64_data.length; i++) {
+		            request_B64_data[i] = inFromClient.readByte();
+		        }
+		        System.out.println("inFromClient" + inFromClient.toString());
+
+				//----------------------------------------------------- //
+				//				[Decode Request JSON ] 					//
+				//----------------------------------------------------- //
+				
+				byte[] request_bytes_decoded =  Base64.getMimeDecoder().decode(request_B64_data);
+				request_string = new String(request_bytes_decoded);
+	        }
+	        catch (Exception ex) {  
+	            System.err.println("Error Decoding Client Request Message.\n");
+	            return;
+	        } 
 
 	 		//----------------------------------------------------- //
 			// 		    	[Parse request JSON ]	    			//
 			//----------------------------------------------------- //
 
-			JsonParser parser = new JsonParser();
+			//JsonParser parser = new JsonParser();
 
 			JsonObject request = parser.parse​(request_string).getAsJsonObject();
 			String ck = null, cm = null, digest = null, signature=null;
@@ -162,46 +304,58 @@ public class SecureServer{
 			//----------------------------------------------------- //
 
 			// Decipher CK with its private key to obtain KM	
-			
-			
-	    	System.out.println("Deciphering with " + CIPHER_ASYM + "...");
-	    	Cipher cipher_asym = Cipher.getInstance(CIPHER_ASYM);
-	    	cipher_asym.init(Cipher.DECRYPT_MODE, serverPrivateKey);
+			Cipher cipher_asym  = null; byte[] ck_bytes_deciphered = null;
+			try{
+				System.out.println("Deciphering with " + CIPHER_ASYM + "...");
+		    	cipher_asym = Cipher.getInstance(CIPHER_ASYM);
+		    	cipher_asym.init(Cipher.DECRYPT_MODE, this.serverPrivateKey);
+		    	ck_bytes_deciphered = cipher_asym.doFinal(ck_bytes);
+		    	
+		    	//String ck_bytes_deciphered_string = new String(ck_bytes_deciphered);
+	    	
+			}
 
-	    	
-	    	byte[] ck_bytes_deciphered = cipher_asym.doFinal(ck_bytes);
-	    	
-	    	String ck_bytes_deciphered_string = new String(ck_bytes_deciphered);
-	    	
+			catch (Exception ex) {  
+	            System.err.println("Error Deciphering Client CK.\n");
+	            return;
+	        } 
+
+			
 			//----------------------------------------------------- //
 			// 		    	[Rebuild KM (symmetric key) ]	    	//
 			//----------------------------------------------------- //
 			SecretKey km_symmetric = new SecretKeySpec(ck_bytes_deciphered, 0, ck_bytes_deciphered.length, "AES"); 
 
 			//  Decipher CM with key KM to recover M 	
-			
-			
-	    	System.out.println("Deciphering with " + CIPHER_ASYM + "...");
-	    	Cipher cipher_sym = Cipher.getInstance(CIPHER_SYM);
-	    	cipher_sym.init(Cipher.DECRYPT_MODE, km_symmetric);
+			Cipher cipher_sym = null; String message = null;
+			byte[] cm_bytes_deciphered  = null;
+			try{
+		    	System.out.println("Deciphering with " + CIPHER_ASYM + "...");
+		    	cipher_sym = Cipher.getInstance(CIPHER_SYM);
+		    	cipher_sym.init(Cipher.DECRYPT_MODE, km_symmetric);
 
-	    	
-	    	byte[] cm_bytes_deciphered = cipher_sym.doFinal(cm_bytes);
-	    	String message = new String(cm_bytes_deciphered);
-	    	
-	    	System.out.println("----------------------------------------");
-	    	System.out.println("Deciphered data Message:" + message);
-			System.out.println("Confidentiality ensured.");
-	    	System.out.println("----------------------------------------");
+		    	
+		    	cm_bytes_deciphered = cipher_sym.doFinal(cm_bytes);
+		    	message = new String(cm_bytes_deciphered);
+		    	
+		    	System.out.println("----------------------------------------");
+		    	System.out.println("Deciphered data Message:" + message);
+				System.out.println("Confidentiality ensured.");
+		    	System.out.println("----------------------------------------");				
+			}
 
+			catch (Exception ex) {  
+	            System.err.println("Error Deciphering Client CK.\n");
+	            return;
+	        } 
 
 	 		//----------------------------------------------------- //
 			// 		    		[Parse CM JSON ]	    			//
 			//----------------------------------------------------- //
-
+	        
 			JsonObject cm_json = parser.parse​(message).getAsJsonObject();
 			
-			String from = null, to = null, timestampReceived = null, clientMessage = null;
+			from = null; to = null; timestampReceived = null; String clientMessage = null;
 			{
 				JsonObject infoJson = cm_json.getAsJsonObject("info");
 
@@ -213,13 +367,13 @@ public class SecureServer{
 
 			}
 			
-			System.out.println("-------------------------------------");
-        	System.out.println("Json Received From Client: ");
-        	System.out.println("from: " + from);
-        	System.out.println("to: " + to);
-        	System.out.println("timestamp: " + timestampReceived);
-        	System.out.println("message: " + clientMessage);
-        	System.out.println("-------------------------------------");
+			//System.out.println("-------------------------------------");
+	    	//System.out.println("Json Received From Client: ");
+	    	//System.out.println("from: " + from);
+	    	//System.out.println("to: " + to);
+	    	//System.out.println("timestamp: " + timestampReceived);
+	    	//System.out.println("message: " + clientMessage);
+	    	//System.out.println("-------------------------------------");
 			
 	    	//------------------------------------------------------------- //
 	    	//					Check freshness of message
@@ -253,21 +407,33 @@ public class SecureServer{
 	    	//------------------------------------------------------------- //
 
 	        // Hash received Message (message) and digest it to produce hash H’ 
-	    	
-	        MessageDigest digest_prime = MessageDigest.getInstance(DIGEST_ALGO);
-	        digest_prime.update(cm_bytes_deciphered);
+	        byte[] hash_prime = null;
+	    	try{
+		        MessageDigest digest_prime = MessageDigest.getInstance(DIGEST_ALGO);
+		        digest_prime.update(cm_bytes_deciphered);
 
-	        byte[] digest_prime_bytes = digest_prime.digest();
+		        byte[] digest_prime_bytes = digest_prime.digest();
 
-	        String digestB64String = Base64.getEncoder().encodeToString(digest_prime_bytes);
-	        byte[] hash_prime = digestB64String.getBytes();
+		        String digestB64String = Base64.getEncoder().encodeToString(digest_prime_bytes);
+		        hash_prime = digestB64String.getBytes();
 
-	        // Decipher S with public key of sender to get H back	
-	    	cipher_asym.init(Cipher.DECRYPT_MODE, clientPublicKey);
-	    	byte[] hash = cipher_asym.doFinal(signature_bytes);
-	    	
+   		
+	    	}
 
-
+			catch (Exception ex) {  
+	            System.err.println("Error Creating A Digest From The Message Received.\n");
+	            return;
+	        } 
+	        byte[] hash = null;
+	        try{
+		        // Decipher S with public key of sender to get H back	
+		    	cipher_asym.init(Cipher.DECRYPT_MODE, this.clientPublicKey);
+		    	hash = cipher_asym.doFinal(signature_bytes);	 
+		    }
+			catch (Exception ex) {  
+	            System.err.println("Error Deciphering Client Signature.\n");
+	            return;
+	        }
 	    	// If recalculated hash H’ is equal to deciphered hash H then 
 			// the message was not modified and was sent by the sender 	
 
@@ -284,25 +450,34 @@ public class SecureServer{
 	    		System.out.println("-----------------------------------------");
 
 	    	}
-	    	
-	    	
-            switch (clientMessage){
-                case "requestLocationProof":
-                    System.out.println("received proof request from user");
-                    //if (handle_requestLocationProof(sender)){
-                        //submitLocationReport(userId, ep, report, …)
-                        //Specification: user userId submits a location report.re
-                    //};
-                case "Hello!!":
-                	System.out.println("----------------------------------------");
-                	System.out.println("received Hello from user");
-                	System.out.println("----------------------------------------");
-                break;
-            }
 
-	    	//----------------------------------------------------- //
-			// 		    		[Send Message Back]			     	//
-			//----------------------------------------------------- //
+			//====================================================== //
+	        //====================================================== //
+	        //   			[Handler The Request ]      			  //
+	        //====================================================== //
+			//====================================================== //
+	    	
+	        switch (clientMessage){
+	            case "requestLocationProof":
+	                System.out.println("received proof request from user");
+	                //if (handle_requestLocationProof(sender)){
+	                    //submitLocationReport(userId, ep, report, …)
+	                    //Specification: user userId submits a location report.re
+	                //};
+	            case "Hello!!":
+	            	System.out.println("----------------------------------------");
+	            	System.out.println("received Hello from user");
+	            	System.out.println("----------------------------------------");
+	            break;
+	        }
+
+
+
+			//====================================================== //
+	        //====================================================== //
+	        // 		    	[Reply To Server's Request]			     //
+	        //====================================================== //
+			//====================================================== //
 	    	
 	    	System.out.println(
 			" =================================================\n"
@@ -331,11 +506,11 @@ public class SecureServer{
 				replyJson.add("info", infoJson);
 
 				Timestamp current_timestamp = new Timestamp(System.currentTimeMillis());
-            	infoJson.addProperty("timestamp", current_timestamp.getTime());
-            	replyJson.add("info", infoJson);
+	        	infoJson.addProperty("timestamp", current_timestamp.getTime());
+	        	replyJson.add("info", infoJson);
 
-            	infoJson.addProperty("message", "Hi!!");
-            	replyJson.add("info", infoJson);
+	        	infoJson.addProperty("message", "Hi!!");
+	        	replyJson.add("info", infoJson);
 
 			}
 
@@ -354,32 +529,49 @@ public class SecureServer{
 			//	– Send CK and CM 										//
 			//--------------------------------------------------------- //
 
+			Cipher cipher_km = null;
+			try{
+				// Generate a random symmetric key KM
+		        cipher_km = Cipher.getInstance(CIPHER_SYM);
+		        cipher_km.init(Cipher.ENCRYPT_MODE, this.symmetricKey);
 
+			}
+			catch (Exception ex) {  
+	            System.err.println("Error Generate a random symmetric key KM .\n");
+	            return;
+	        }
+	        byte[] server_cm_bytes = null;
+	        try{
+	        	// Cipher message M with key KM to produce cryptogram CM 
+		        server_cm_bytes = cipher_km.doFinal(serverData);
+		        System.out.println("---------------------------------------");
+		        //System.out.println("Cipher message serverData with key KM to produce cryptogram CM");
+		        //System.out.println("serverData length " + serverData.length);
+		        //System.out.println("cm_bytes length " + server_cm_bytes.length);
+		        //System.out.println("---------------------------------------");
 
+	        }
+			catch (Exception ex) {  
+	            System.err.println("Error Ciphering message M with key KM to produce cryptogram CM .\n");
+	            return;
+	        }
+	        byte[] server_ck_bytes = null;
+	        try{
+	        	// Cipher key KM with receiver’s public Key  to produce 
+		        // cryptogram CK 
+		        Cipher cipher_rpk = Cipher.getInstance(CIPHER_ASYM);
+		        cipher_rpk.init(Cipher.ENCRYPT_MODE, this.clientPublicKey);
+		        server_ck_bytes = cipher_rpk.doFinal(this.symmetricKey.getEncoded());
+		        //System.out.println("---------------------------------------");
+		        //System.out.println("Cipher key KM with receiver’s public Key to produce cryptogram CK ");
+		        //System.out.println("server_ck_bytes length " + server_ck_bytes.length);
+		        //System.out.println("---------------------------------------");
+		    }
 
-			// Generate a random symmetric key KM
-	        // Cipher message M with key KM to produce cryptogram CM 
-
-	        Cipher cipher_km = Cipher.getInstance(CIPHER_SYM);
-	        cipher_km.init(Cipher.ENCRYPT_MODE, symmetricKey);
-	        byte[] server_cm_bytes = cipher_km.doFinal(serverData);
-	        System.out.println("---------------------------------------");
-	        //System.out.println("Cipher message serverData with key KM to produce cryptogram CM");
-	        //System.out.println("serverData length " + serverData.length);
-	        //System.out.println("cm_bytes length " + server_cm_bytes.length);
-	        //System.out.println("---------------------------------------");
-
-	        // Cipher key KM with receiver’s public Key  to produce 
-	        // cryptogram CK 
-
-	        Cipher cipher_rpk = Cipher.getInstance(CIPHER_ASYM);
-	        cipher_rpk.init(Cipher.ENCRYPT_MODE, clientPublicKey);
-	        byte[] server_ck_bytes = cipher_rpk.doFinal(symmetricKey.getEncoded());
-	        //System.out.println("---------------------------------------");
-	        //System.out.println("Cipher key KM with receiver’s public Key  to produce cryptogram CK ");
-	        //System.out.println("server_ck_bytes length " + server_ck_bytes.length);
-	        //System.out.println("---------------------------------------");
-	        
+			catch (Exception ex) {  
+	            System.err.println("Error Ciphering KM with Client Public Key To Produce CM.\n");
+	            return;
+	        }
 
 	        // Encode CM in base64
 	        String cm_String = cm_bytes.toString();
@@ -413,36 +605,48 @@ public class SecureServer{
 			// 	  to produce signature S 							 	//
 			//	– Send M and S											//
 			//--------------------------------------------------------- //
-			
-				
-			// Digest message M to produce hash H 
-	        //System.out.println("---------------------------------------");
-	        //System.out.println("Digest message M to produce hash H ");
-	        MessageDigest messageDigest = MessageDigest.getInstance(DIGEST_ALGO);
-	        messageDigest.update(serverData);
-	        byte[] digestBytes = messageDigest.digest();
-	        //System.out.println("digestBytes length " + digestBytes.length);
+			byte[] digestB64bytes = null;
+			try{
+				// Digest message M to produce hash H 
+		        //System.out.println("---------------------------------------");
+		        //System.out.println("Digest message M to produce hash H ");
+		        MessageDigest messageDigest = MessageDigest.getInstance(DIGEST_ALGO);
+		        messageDigest.update(serverData);
+		        byte[] digestBytes = messageDigest.digest();
+		        //System.out.println("digestBytes length " + digestBytes.length);
 
-			// Encode digest in base64
-	        String serverDigestB64String = Base64.getEncoder().encodeToString(digestBytes);
-	        byte[] digestB64bytes = serverDigestB64String.getBytes();
-	        //System.out.println("digestB64bytes length " + digestB64bytes.length);
-	        //System.out.println("---------------------------------------");
+				// Encode digest in base64
+		        String serverDigestB64String = Base64.getEncoder().encodeToString(digestBytes);
+		        digestB64bytes = serverDigestB64String.getBytes();
+		        //System.out.println("digestB64bytes length " + digestB64bytes.length);
+		        //System.out.println("---------------------------------------");
+			}	
+			catch (Exception ex) {  
+	            System.err.println("Error Digest message M to produce hash H.\n");
+	            return;
+	        }
+	        String signatureB64String = null;
+	        try{
+				// Cipher hash H with private key of Sender to produce signature S 
 
-			// Cipher hash H with private key of Sender to produce signature S 
-
-	        Cipher sign = Cipher.getInstance(CIPHER_ASYM);
-	        sign.init(Cipher.ENCRYPT_MODE, serverPrivateKey);
+		        Cipher sign = Cipher.getInstance(CIPHER_ASYM);
+		        sign.init(Cipher.ENCRYPT_MODE, this.serverPrivateKey);
 
 
-	        byte[] server_signature_bytes = sign.doFinal(digestB64bytes);
-	        String signatureB64String = Base64.getEncoder().encodeToString(server_signature_bytes);
-	        //System.out.println("---------------------------------------");
-	        //System.out.println("server_signature_bytes length " + server_signature_bytes.length);
-	        //System.out.println("server_signature_B64bytes length " + signatureB64String.getBytes().length);
-			//System.out.println("---------------------------------------");			
+		        byte[] server_signature_bytes = sign.doFinal(digestB64bytes);
+		        signatureB64String = Base64.getEncoder().encodeToString(server_signature_bytes);
+		        //System.out.println("---------------------------------------");
+		        //System.out.println("server_signature_bytes length " + server_signature_bytes.length);
+		        //System.out.println("server_signature_B64bytes length " + signatureB64String.getBytes().length);	        	
+	        }
 
-        	//------------------------------------------------------------ 	//
+			catch (Exception ex) {  
+	            System.err.println("Error Ciphering hash H with private key of Sender to produce signature S .\n");
+	            return;
+	        }
+					
+
+	    	//------------------------------------------------------------ 	//
 			//			[Create Response Message With CK, CM, Signature]	//
 			//------------------------------------------------------------ 	//
 
@@ -477,39 +681,53 @@ public class SecureServer{
 			//			[Create Socket and Send Response ] 		//
 			//----------------------------------------------------- //
 			
+	        try{
+				DataOutputStream outToClient =
+		                new DataOutputStream(clientSocket.getOutputStream()); //send byte array with changes back to the client
 
+		        outToClient.writeInt(response_B64.length); // write length of the message
+		        outToClient.write(response_B64);           // write the message
 
-			DataOutputStream outToClient =
-                    new DataOutputStream(clientSocket.getOutputStream()); //send byte array with changes back to the client
+		        System.out.println("Test Response Sent To Client.");	        	
+	        }
 
-            outToClient.writeInt(response_B64.length); // write length of the message
-            outToClient.write(response_B64);           // write the message
+	        catch (Exception ex) {  
+	            System.err.println("Error Sending The Reply To Client.\n");
+	            return;
+	        } 
 
-            System.out.println("Test Response Sent To Client.");
 		
-
+			
 			
 	        //----------------------------------------------------- //
 			//				[Close Sockets and Reset] 				//
 			//----------------------------------------------------- //
 
 			System.out.println("----------------------------------------");
-    		System.out.println("Closing Sockets");
-    		System.out.println("----------------------------------------");
+			System.out.println("Closing Sockets");
+			System.out.println("----------------------------------------");
 			
-			
-			serverSocket.close();
-			clientSocket.close();
-        
+			try{
+				serverSocket.close();
+			}
+	        catch (Exception ex) {  
+	            System.err.println("Error Closing Server Socket.\n");
+	            return;
+	        } 
 
 
-	    } //while
-		    
+	    	try{
+				serverSocket.close();
+			}
+
+	        catch (Exception ex) {  
+	            System.err.println("Error Closing Server Socket.\n");
+	            return;
+	        } 
+	    }
 	    
-		
-		
-		
-	} //main
+	    	
+	};
 
 
 
@@ -563,4 +781,41 @@ public class SecureServer{
     }
 
 
-}
+
+    //----------------------------------------------------- //
+    //             [Function To Create a JSON]              //
+    //----------------------------------------------------- //
+    private static JsonObject createJsonMessage(String userID, String serverMessage){
+        
+        
+        JsonParser parser = new JsonParser();
+        JsonObject requestJson = parser.parse​("{}").getAsJsonObject();
+        {
+            JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+            infoJson.addProperty("from", "Server");
+            requestJson.add("info", infoJson);
+            
+            infoJson.addProperty("to", userID);
+            requestJson.add("info", infoJson);
+
+            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+            infoJson.addProperty("timestamp", timestamp.getTime());
+            requestJson.add("info", infoJson);
+
+            infoJson.addProperty("message", serverMessage);
+            requestJson.add("info", infoJson);
+
+
+        }
+
+
+        System.out.println("-------------------------------------");
+        System.out.println("Request message: " + requestJson);
+        System.out.println("-------------------------------------");
+        
+        return requestJson;
+        
+    }
+
+
+};
