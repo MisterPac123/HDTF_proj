@@ -2,15 +2,75 @@ package client;
 
 import java.util.Scanner;
 
-import java.net.*;
 import java.io.*;
+import java.util.*;
+import java.security.*;
+import java.security.spec.*;
+import javax.crypto.*;
+import javax.crypto.spec.*;
 
+import java.net.*;
+
+
+import com.google.gson.*;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.security.Key;
 
 public class Client {
 
+
     private static String userID;
     private static String hostname;
+    private static int clientPort;
 
+    private final static String CIPHER_ASYM = "RSA/ECB/PKCS1Padding";
+    private final static String CIPHER_SYM = "AES/ECB/PKCS5Padding";
+    private final static String DIGEST_ALGO = "SHA-256";
+
+    // ----------------------------------------------------------------- //
+    // Each user will have a different path
+    // Will be necessary for proof signature too.
+    // ----------------------------------------------------------------- //
+   
+
+    private static PrivateKey clientPrivateKey;
+    private static PublicKey clientPublicKey;
+    private static PublicKey serverPublicKey;
+    private static Key symmetricKey;
+
+
+    // =============================================================================== //
+    //                           [CLIENT CONSTRUCTOR]
+    // =============================================================================== //
+    public Client(String userID, String hostname, int clientPort, 
+        PrivateKey clientPrivateKey, PublicKey clientPublicKey,
+        PublicKey serverPublicKey, Key symmetricKey) {
+
+        this.userID = userID;
+        this.hostname = hostname;
+        this.clientPort = clientPort;
+
+
+        try{
+            //----------------------------------------------------- //
+            //                      [Read keys]                     //
+            //----------------------------------------------------- //
+            this.clientPrivateKey = clientPrivateKey;
+            this.clientPublicKey = clientPublicKey;
+            this.serverPublicKey = serverPublicKey;
+            this.symmetricKey = symmetricKey;
+            
+        }
+        catch(Exception e){
+            System.err.println("Error while reading the keys!");
+        }
+    };
+
+    // =============================================================================== //
+    //                           [CLIENT CONNECTION CONSTRUCTOR]
+    // =============================================================================== //
     private static class Client_connection{
         private final BufferedReader receiver;
         private final PrintWriter sender ;
@@ -21,8 +81,42 @@ public class Client {
             this. sender = sender;
             this.socket =socket;
         }
-    }
+    };
 
+    // =============================================================================== //
+    //                      [CLIENT SERVER COMMUNICATION CONSTRUCTOR]
+    // =============================================================================== //
+
+    private static class Client_Server_Connection{
+        // ----------------------------------------------------------------- //
+        // Might have to change later
+        // ----------------------------------------------------------------- //
+
+        //private ArrayList<Long> timestampsAlreadyUsed = new ArrayList<Long>();
+        private InetAddress serverAddress = null;
+        private int serverPort = 8000;
+
+
+        // ----------------------------------------------------------------- //
+        // Constructur should have: serverAddress; serverPort
+        // ----------------------------------------------------------------- //
+        public Client_Server_Connection() {
+            //this.serverPort = serverPort;
+            //this.serverAddress = serverAddress;
+            try{
+                serverAddress = InetAddress.getByName("localhost");
+            }
+            catch (Exception ex) {  
+                System.err.println(ex);  
+            } 
+            
+        }
+    };
+
+
+    // =============================================================================== //
+    //                                   [MAIN]
+    // =============================================================================== //
 
     public static void main(String[] args) {
 
@@ -43,24 +137,132 @@ public class Client {
             return;
         }
 
+        if(port == 8000){
+            System.out.println("Port 8000 is Reserved For Sever. Please run again with another one");
+            return;
+        }
+        // ----------------------------------------------------------------- //
+        //                          Keys Generation
+        // ----------------------------------------------------------------- //
+        AESKeyGenerator aesKeyGenerator = null;
+        RSAKeyGenerator rsaKeyGenerator = null;
+        Key aesKey  =  null;
+        PublicKey rsaUserPubKey = null; PrivateKey rsaUserPrivKey = null; KeyPair clientKeyPair = null;
+        PublicKey serverPubKey = null;
+
+        String userSharedKeysDir = "keys/shared/" + userID;
+        String userPrivateKeyDir = "keys/private/" + userID;
+        String serverKeyPath = "keys/shared/server/server_pub.key";
+        
+        try{
+            serverPubKey = readPublicKey(serverKeyPath);            
+        }
+        catch (Exception ex) {  
+            System.err.println("Error Reading Server Public Key.\n"); 
+            System.err.println("Check if There is a directory: " + serverKeyPath + " .\n"); 
+            return;
+        }
+
+        try{
+            File sharedDir = new File(userSharedKeysDir);
+            if (!sharedDir.exists()){
+                sharedDir.mkdirs();
+            }
+            File privDir = new File(userPrivateKeyDir);
+            if (!privDir.exists()){
+                privDir.mkdirs();
+            }
+        }
+
+        catch (Exception ex) {  
+            System.err.println("Error Creating The Keys Directories For User.\n"); 
+            return;
+        } 
+        try{
+            // Asssuming userID is unique.
+            String userSharedAESKeyPath = userSharedKeysDir + "/aes.key";
+            aesKeyGenerator = new AESKeyGenerator(userSharedAESKeyPath);
+
+            try{
+                aesKey = aesKeyGenerator.read(); 
+            }
+            catch (Exception ex) {  
+                System.out.println("Symmetric Key Does Not Exists Yet.\n");
+                System.out.println("Generating Symmetric Key.\n");
+                aesKeyGenerator.write();  
+                aesKey = aesKeyGenerator.read(); 
+            } 
+        }
+        catch (Exception ex) {  
+            System.err.println("Error Generating Symmetric Key.\n");
+            System.err.println("Ckeck AESKeyGenerator\n");    
+            return;
+        } 
+        
+        try{
+            // Asssuming userID is unique.
+            String userSharedRSAKeyPath = userSharedKeysDir + "/client_pub.key";
+            String userPrivateRSAKeyPath = userPrivateKeyDir + "/client_priv.key";
+            //String userPrivKeyDir 
+            rsaKeyGenerator = new RSAKeyGenerator(userSharedRSAKeyPath, userPrivateRSAKeyPath);
+
+            try{
+                clientKeyPair = rsaKeyGenerator.read(); 
+                rsaUserPrivKey = clientKeyPair.getPrivate();
+                rsaUserPubKey = clientKeyPair.getPublic();
+            }
+            catch (Exception ex) {  
+                System.out.println("Asymmetric Key Pair Does Not Exists Yet.\n");
+                System.out.println("Generating Asymmetric Key Pair.\n");
+                rsaKeyGenerator.write();  
+                clientKeyPair = rsaKeyGenerator.read(); 
+                rsaUserPrivKey = clientKeyPair.getPrivate();
+                rsaUserPubKey = clientKeyPair.getPublic();
+            } 
+        }
+        catch (Exception ex) {  
+            System.err.println("Error Generating Key Pair.\n");
+            return;
+        } 
+
+        
+        // ----------------------------------------------------------------- //
+        //                          Client Init
+        // ----------------------------------------------------------------- //
+        Client client = new Client(userID, hostname, port, 
+            rsaUserPrivKey, rsaUserPubKey, serverPubKey, aesKey);
+
+        
+        // ----------------------------------------------------------------- //
+        //                       Client Listener Init
+        // ----------------------------------------------------------------- //
         //Start listener socket
         new ClientListener(userID, port).start();
 
+        // ----------------------------------------------------------------- //
+        //                          Actions Menu
+        // ----------------------------------------------------------------- //
         //read input command
         try {
             BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
             String text;
             System.out.println("\nWelcome " + userID + "\n\n");
             do {
-                System.out.println("Choose option:\n     1 - Request Location Proof\n     2 - exit");
+                System.out.println("Choose option:\n     1 - Request Location Proof\n     2 - exit\n");
                 text = reader.readLine();
 
                 switch (text) {
                     case "1":
-                        requestLocationProof();
+                        boolean proofsOk = requestLocationProof();
+                        if(proofsOk){
+                            submitLocationReport();
+                            break;
+                        }
+                        
                         break;
                     case "changeLocation":
                         //changeLocation(axisX, axisY);
+                        break;
 
                 }
             } while (!text.equals("2"));
@@ -77,11 +279,12 @@ public class Client {
     //## Secondary functions ##
     //#########################
 
-    private static void requestLocationProof() throws IOException {
+    private static boolean requestLocationProof() throws IOException {
         int[] ports = getClientConnections();
-
+        boolean atLeastOnePort = false;
         for(int p : ports){
             if(p != 0) {
+                atLeastOnePort = true;
                 try {
                     Client_connection client = connectToClient(p);
                     client.sender.println("requestLocationProof");
@@ -98,6 +301,11 @@ public class Client {
                 }
             }
         }
+        if(!atLeastOnePort){
+            System.out.println("At Least Two Clients Must be Running!.\n");
+                
+        }
+        return atLeastOnePort;
     }
 
     private static Client_connection connectToClient(int client_port) throws IOException {
@@ -131,5 +339,76 @@ public class Client {
         }
         myReader.close();
         return ports;
+    }
+
+
+    private static void submitLocationReport() throws IOException {
+
+        // ----------------------------------------------------------------- //
+        //                  Client Server Comunication Init
+        // ----------------------------------------------------------------- //
+
+        Client_Server_Connection client_server_connection = new Client_Server_Connection();
+
+        //----------------------------------------------------- //
+        //   [Start New Thread Communication With Server ]      //
+        //----------------------------------------------------- //
+        
+        ClientServerCommunication clientServerCommunication = 
+        new ClientServerCommunication(userID, clientPort, 
+            clientPrivateKey, clientPublicKey, serverPublicKey, symmetricKey,
+            client_server_connection.serverAddress, client_server_connection.serverPort,
+            "submitLocationReport"
+        );
+        clientServerCommunication.run();
+
+    }
+
+
+    // =============================================================================== //
+    //                               [READ KEYS FUNCTIONS]
+    // =============================================================================== //
+    private static byte[] readFile(String path) throws FileNotFoundException, IOException {
+        FileInputStream fis = new FileInputStream(path);
+        byte[] content = new byte[fis.available()];
+        fis.read(content);
+        fis.close();
+        return content;
+    }
+
+    public static Key readSecretKey(String secretKeyPath) throws Exception {
+        byte[] encoded = readFile(secretKeyPath);
+        SecretKeySpec keySpec = new SecretKeySpec(encoded, "AES");
+        return keySpec;
+    }
+
+    public static PublicKey readPublicKey(String publicKeyPath) throws Exception {
+        //System.out.println("Reading public key from file " + publicKeyPath + " ...");
+        byte[] pubEncoded = readFile(publicKeyPath);
+        X509EncodedKeySpec pubSpec = new X509EncodedKeySpec(pubEncoded);
+        KeyFactory keyFacPub = KeyFactory.getInstance("RSA");
+        PublicKey pub = keyFacPub.generatePublic(pubSpec);
+        return pub;
+    }
+
+    public static PrivateKey readPrivateKey(String privateKeyPath) throws Exception {
+        byte[] privEncoded = readFile(privateKeyPath);
+        PKCS8EncodedKeySpec privSpec = new PKCS8EncodedKeySpec(privEncoded);
+        KeyFactory keyFacPriv = KeyFactory.getInstance("RSA");
+        PrivateKey priv = keyFacPriv.generatePrivate(privSpec);
+        return priv;
+    }
+
+
+    public static void deleteDirectory(String dir) {
+
+        
+        File index = new File(dir);
+        String[]entries = index.list();
+        for(String s: entries){
+            File currentFile = new File(index.getPath(),s);
+            currentFile.delete();
+        }
+        index.delete();
     }
 }
