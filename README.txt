@@ -25,20 +25,23 @@
 		2. a Server Deciphers proofSignB with user B public Key.
 		2. b Server Knows that B send a valid proof about user A's location.
 
+4. In the end project should be running with maven or some
+other framework.
 
 In root folder (HDTF_proj):
 ==================================================================
-							[CLIENT]
+							[SERVER]
 ==================================================================
 // All Dependency Classes will also be compliled. 
 
 >> javac -cp server/gson-2.6.2.jar: server/SecureServer.java 
 
 >> java -cp server/gson-2.6.2.jar: server.SecureServer 8000 keys/bob.privkey keys/bob.pubkey keys/alice.pubkey keys/secret.key
+
 ==================================================================
-							[SERVER]
+							[CLIENT]
 ==================================================================
-// All Dependency Classes will also be coompliled. 
+// All Dependency Classes will also be coompiled. 
 
 >> javac -cp client/gson-2.6.2.jar: client/Client.java
 
@@ -49,3 +52,26 @@ In root folder (HDTF_proj):
 ==================================================================
 							[END]
 ==================================================================
+
+
+==================================================================
+			[Generating Keys with RSAKeyGenerator]
+==================================================================
+
+In root folder (HDTF_proj):
+Dont forget to change package name in generators(key_generators):
+(AESKeyGenerator.java | RSAKeyGenerator.java | DataUtils.java)
+
+
+>> javac key_generators/AESKeyGenerator.java
+>> javac key_generators/RSAKeyGenerator.java
+
+## Begin by generating a new AES Key:
+>> java key_generators.AESKeyGenerator w keys/aes.key
+
+## Asymmetric ciphers:
+>> java key_generators.RSAKeyGenerator w keys/server_priv.key keys/server_pub.key
+>> java key_generators.RSAKeyGenerator w keys/client_priv.key keys/client_pub.key
+
+
+>> java -cp server/gson-2.6.2.jar: server.SecureServer 8000 keys/server_priv.key keys/server_pub.key keys/client_pub.key keys/aes.key

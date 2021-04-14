@@ -49,10 +49,15 @@ public class Client {
         this.hostname = hostname;
         this.clientPort = clientPort;
 
-        this.clientPrivateKeypath = "keys/alice.privkey";
-        this.clientPublicKeypath = "keys/alice.pubkey";
-        this.serverPublicKeypath = "keys/bob.pubkey";
-        this.symmetricKeyPath = "keys/secret.key";
+        //this.clientPrivateKeypath = "keys/alice.privkey";
+        //this.clientPublicKeypath = "keys/alice.pubkey";
+        //this.serverPublicKeypath = "keys/bob.pubkey";
+        //this.symmetricKeyPath = "keys/secret.key";
+
+        this.clientPrivateKeypath = "keys/client_priv.key";
+        this.clientPublicKeypath = "keys/client_pub.key";
+        this.serverPublicKeypath = "keys/server_pub.key";
+        this.symmetricKeyPath = "keys/aes.key";
 
         try{
             //----------------------------------------------------- //
