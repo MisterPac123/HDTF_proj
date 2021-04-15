@@ -150,8 +150,8 @@ public class Client {
         PublicKey rsaUserPubKey = null; PrivateKey rsaUserPrivKey = null; KeyPair clientKeyPair = null;
         PublicKey serverPubKey = null;
 
-        String userSharedKeysDir = "keys/shared/" + userID;
-        String userPrivateKeyDir = "keys/private/" + userID;
+        String userSharedKeysDir = "keys/shared/" + port;
+        String userPrivateKeyDir = "keys/private/" + port;
         String serverKeyPath = "keys/shared/server/server_pub.key";
         
         try{
@@ -253,9 +253,11 @@ public class Client {
 
                 switch (text) {
                     case "1":
-                        boolean proofsOk = requestLocationProof();
-                        if(proofsOk){
-                            submitLocationReport();
+                        List<String> proofs = new ArrayList<String>();
+                        proofs = requestLocationProof();
+                        
+                        if(proofs.size() > 0){
+                            submitLocationReport(proofs);
                             break;
                         }
                         
@@ -279,20 +281,65 @@ public class Client {
     //## Secondary functions ##
     //#########################
 
-    private static boolean requestLocationProof() throws IOException {
+    private static List<String> requestLocationProof() throws IOException {
         int[] ports = getClientConnections();
-        boolean atLeastOnePort = false;
+        List<String> proofs = new ArrayList<String>();
+        JsonParser parser = new JsonParser();
+
         for(int p : ports){
             if(p != 0) {
-                atLeastOnePort = true;
+                
                 try {
                     Client_connection client = connectToClient(p);
                     client.sender.println("requestLocationProof");
-
                     String responseLocationProof = client.receiver.readLine();
-                    if (responseLocationProof.equals("Proof")) {
-                        System.out.println("user port " + p + " sent a proof");
+
+                    // Its not necessary to check what is the response from the witness!
+                    // Server will chek that!
+                    JsonObject proofJSON = parser.parse​("{}").getAsJsonObject();
+                    {
+                        JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+                        
+                        infoJson.addProperty("witness", p);
+                        proofJSON.add("info", infoJson);
+                        
+                        infoJson.addProperty("responseLocationProof", responseLocationProof);
+                        proofJSON.add("info", infoJson);
+
                     }
+
+                    System.out.println("user port " + p + " sent a proof");
+
+                    // Encode request in base64
+                    byte[] proofBytes = proofJSON.toString().getBytes();
+                    String proofBytesB64String = Base64.getEncoder().encodeToString(proofBytes);
+                    //byte[] proofBytesB64 = proofBytesB64String.getBytes();
+                    proofs.add(proofBytesB64String);
+
+                    /*
+                    if (responseLocationProof.equals("Proof")) {
+
+                        
+                        JsonObject proofJSON = parser.parse​("{}").getAsJsonObject();
+                        {
+                            JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+                            
+                            infoJson.addProperty("witness", p);
+                            proofJSON.add("info", infoJson);
+                            
+                            infoJson.addProperty("responseLocationProof", responseLocationProof);
+                            proofJSON.add("info", infoJson);
+
+                        }
+
+                        System.out.println("user port " + p + " sent a proof");
+
+                        // Encode request in base64
+                        byte[] proofBytes = proofJSON.toString().getBytes();
+                        String proofBytesB64String = Base64.getEncoder().encodeToString(proofBytes);
+                        //byte[] proofBytesB64 = proofBytesB64String.getBytes();
+                        proofs.add(proofBytesB64String);
+                    }*/
                     client.sender.println("bye");
                     client.socket.close();
 
@@ -301,11 +348,11 @@ public class Client {
                 }
             }
         }
-        if(!atLeastOnePort){
+        if(proofs.size() == 0){
             System.out.println("At Least Two Clients Must be Running!.\n");
                 
         }
-        return atLeastOnePort;
+        return proofs;
     }
 
     private static Client_connection connectToClient(int client_port) throws IOException {
@@ -342,7 +389,12 @@ public class Client {
     }
 
 
-    private static void submitLocationReport() throws IOException {
+    private static void submitLocationReport(List<String> proofs ) throws IOException {
+
+        for(int i = 0; i < proofs.size(); i++) {
+            System.out.println(proofs.get(i));
+        }
+
 
         // ----------------------------------------------------------------- //
         //                  Client Server Comunication Init
@@ -358,7 +410,7 @@ public class Client {
         new ClientServerCommunication(userID, clientPort, 
             clientPrivateKey, clientPublicKey, serverPublicKey, symmetricKey,
             client_server_connection.serverAddress, client_server_connection.serverPort,
-            "submitLocationReport"
+            "submitLocationReport", proofs
         );
         clientServerCommunication.run();
 

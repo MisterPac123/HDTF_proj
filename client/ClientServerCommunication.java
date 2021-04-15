@@ -19,7 +19,7 @@ public class ClientServerCommunication {
 //public class ClientServerCommunication{
     private String clientRequestString;
 
-    private int port;
+    private int userPort;
     private String userID;
     private Socket socket;
 
@@ -37,17 +37,18 @@ public class ClientServerCommunication {
     private static Key symmetricKey;
 
     private ArrayList<Long> timestampsAlreadyUsed = new ArrayList<Long>();
+    private List<String> proofs = new ArrayList<String>();
     private InetAddress serverAddress = null;
     private int serverPort = 8000;
   
-    public ClientServerCommunication(String userID, int port, 
+    public ClientServerCommunication(String userID, int userPort, 
         PrivateKey clientPrivateKey, PublicKey clientPublicKey, 
         PublicKey serverPublicKey, Key symmetricKey, 
         InetAddress serverAddress, int serverPort,
-        String clientRequestString 
+        String clientRequestString, List<String> proofs
         ){
 
-        this.port = port;
+        this.userPort = userPort;
         this.userID = userID;
 
         this.clientPublicKey = clientPublicKey;
@@ -59,6 +60,7 @@ public class ClientServerCommunication {
         this.serverPort = serverPort;
 
         this.clientRequestString = clientRequestString;
+        this.proofs = proofs;
 
     };
 
@@ -93,8 +95,28 @@ public class ClientServerCommunication {
         "=================================================="+ 
         "==================================================\n");
 
-        JsonObject startCommunicationRequestJson = createJsonMessage(this.userID, 
-            "Hey I am " + this.userID + " and I Want To Start A Connection.", "");
+
+
+        JsonParser parser = new JsonParser();
+
+        String clientRequestString = "Hey I am at: " + this.userPort+ " and I Want To Start A Connection.";
+        JsonObject startCommunicationRequestJson = parser.parse​("{}").getAsJsonObject();
+        {
+            JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+            infoJson.addProperty("from", this.userPort);
+            startCommunicationRequestJson.add("info", infoJson);
+            
+            infoJson.addProperty("to", "Server");
+            startCommunicationRequestJson.add("info", infoJson);
+
+            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+            infoJson.addProperty("timestamp", timestamp.getTime());
+            startCommunicationRequestJson.add("info", infoJson);
+
+            infoJson.addProperty("message", clientRequestString);
+            startCommunicationRequestJson.add("info", infoJson);
+        }
+
         
         // Encode request in base64
         byte[] startCommunicationRequest_bytes = startCommunicationRequestJson.toString().getBytes();
@@ -155,7 +177,7 @@ public class ClientServerCommunication {
         //----------------------------------------------------- //
         //                  [Parse CM JSON ]                    //
         //----------------------------------------------------- //
-        JsonParser parser = new JsonParser();
+       
         JsonObject startReplyStringJSON = parser.parse​(startReplyString).getAsJsonObject();
         
         String from = null, to = null, timestampReceived = null, startMessage = null;
@@ -177,22 +199,46 @@ public class ClientServerCommunication {
         "=================================================="+ 
         "==================================================\n");
 
-        
+        //====================================================== //        
         //====================================================== //
+        //             [START SECURE COMMUNICATION ]             //
         //              [Create Request Message ]                //
         //====================================================== //
+        //====================================================== //
+
 
         //----------------------------------------------------- //
-        // PASS SOME PARAMETERS IF NECESSARY
-        // REQUESTS ONLY VARY ON RESUEST JSON PARAMETERS 
-        // NOT ON CRYPTO FUNCTIONS
-        // IMPLEMENT A SWITCH HERE!
+        //              [Convert Array To Bytes]
         //----------------------------------------------------- //
+        byte[] proofBytes = this.proofs.toString().getBytes();
+        String proofBytesB64String = Base64.getEncoder().encodeToString(proofBytes);
 
-        String proof = "METE AQUI A PROOF!";
-        JsonObject requestJson = createJsonMessage(this.userID,this.clientRequestString, proof);
+        //----------------------------------------------------- //
+        //              [Create JSON Request]
+        //----------------------------------------------------- //
+        
+        JsonObject requestJson = parser.parse​("{}").getAsJsonObject();
+        {
+            JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+            infoJson.addProperty("from", this.userPort);
+            requestJson.add("info", infoJson);
+            
+            infoJson.addProperty("to", "Server");
+            requestJson.add("info", infoJson);
+
+            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+            infoJson.addProperty("timestamp", timestamp.getTime());
+            requestJson.add("info", infoJson);
+
+            infoJson.addProperty("message", this.clientRequestString);
+            requestJson.add("info", infoJson);
+
+            infoJson.addProperty("proofs", proofBytesB64String);
+            requestJson.add("info", infoJson);
+
+
+        }
         byte[] clientData = requestJson.toString().getBytes();
-
 
         //--------------------------------------------------------- //
         //              [Cipher Data: Confidentiality]              //
@@ -480,7 +526,7 @@ public class ClientServerCommunication {
 
         JsonObject cm_json = parser.parse​(message_response).getAsJsonObject();
         
-        from = null; to = null; timestampReceived = null; String serverMessage = null; proof = null;
+        from = null; to = null; timestampReceived = null; String serverMessage = null;
         {
             JsonObject infoJson = cm_json.getAsJsonObject("info");
             timestampReceived = infoJson.get("timestamp").getAsString();
@@ -489,7 +535,7 @@ public class ClientServerCommunication {
             from = infoJson.get("from").getAsString();
             to = infoJson.get("to").getAsString();
             serverMessage = infoJson.get("message").getAsString();
-            proof = infoJson.get("proof").getAsString();
+            //proof = infoJson.get("proof").getAsString();
 
         }
 
@@ -594,44 +640,5 @@ public class ClientServerCommunication {
 
 
     }
-
-    //----------------------------------------------------- //
-    //             [Function To Create a JSON]              //
-    //----------------------------------------------------- //
-    private static JsonObject createJsonMessage(String userID, String clientRequestString, String proof){
-        
-        
-        JsonParser parser = new JsonParser();
-        JsonObject requestJson = parser.parse​("{}").getAsJsonObject();
-        {
-            JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
-            infoJson.addProperty("from", userID);
-            requestJson.add("info", infoJson);
-            
-            infoJson.addProperty("to", "Server");
-            requestJson.add("info", infoJson);
-
-            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-            infoJson.addProperty("timestamp", timestamp.getTime());
-            requestJson.add("info", infoJson);
-
-            infoJson.addProperty("message", clientRequestString);
-            requestJson.add("info", infoJson);
-
-            infoJson.addProperty("proof", clientRequestString);
-            requestJson.add("info", infoJson);
-
-
-        }
-
-
-        System.out.println("-------------------------------------");
-        System.out.println("Request message: " + requestJson);
-        System.out.println("-------------------------------------");
-        
-        return requestJson;
-        
-    }
-
 
 }

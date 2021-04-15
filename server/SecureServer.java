@@ -43,7 +43,7 @@ public class SecureServer extends Thread {
 
 
     private static ArrayList<Long> timestampsAlreadyUsed = new ArrayList<Long>();
-
+    private ArrayList<String> proofs = new ArrayList<String>();
 
     private static int clientPort = 0;
     // Not Necessary
@@ -194,8 +194,33 @@ public class SecureServer extends Thread {
             //----------------------------------------------------- //
             //          [Reply To Client With an ACK]               //
             //----------------------------------------------------- //
-            JsonObject startCommunicationReplyJson = createJsonMessage(from, 
-                "Hi! Lets Start a Secure Communication!.");
+
+            
+            String startReply = "Hi! Lets Start a Secure Communication!.";
+            JsonObject startCommunicationReplyJson = parser.parse​("{}").getAsJsonObject();
+            {
+                JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+                infoJson.addProperty("from", "Server");
+                startCommunicationReplyJson.add("info", infoJson);
+                
+                infoJson.addProperty("to", from);
+                startCommunicationReplyJson.add("info", infoJson);
+
+                Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+                infoJson.addProperty("timestamp", timestamp.getTime());
+                startCommunicationReplyJson.add("info", infoJson);
+
+                infoJson.addProperty("message", startReply);
+                startCommunicationReplyJson.add("info", infoJson);
+
+
+            }
+
+
+            System.out.println("-------------------------------------");
+            System.out.println("Request message: " + startCommunicationReplyJson);
+            System.out.println("-------------------------------------");
+
             
             // Encode request in base64
             byte[] startCommunicationReply_bytes = startCommunicationReplyJson.toString().getBytes();
@@ -354,7 +379,7 @@ public class SecureServer extends Thread {
             
             JsonObject cm_json = parser.parse​(message).getAsJsonObject();
             
-            from = null; to = null; timestampReceived = null; String clientMessage = null; String proof = null;
+            from = null; to = null; timestampReceived = null; String clientMessage = null; String proofs = null;
             {
                 JsonObject infoJson = cm_json.getAsJsonObject("info");
 
@@ -363,7 +388,7 @@ public class SecureServer extends Thread {
 
                 timestampReceived = infoJson.get("timestamp").getAsString();
                 clientMessage = infoJson.get("message").getAsString();
-                proof = infoJson.get("proof").getAsString();
+                proofs = infoJson.get("proofs").getAsString();
 
             }
             
@@ -458,12 +483,12 @@ public class SecureServer extends Thread {
             //====================================================== //
             
             switch (clientMessage){
-                case "requestLocationProof":
+                case "submitLocationReport":
                     System.out.println("received proof request from user");
-                    //if (handle_requestLocationProof(sender)){
-                        //submitLocationReport(userId, ep, report, …)
-                        //Specification: user userId submits a location report.re
-                    //};
+                    if(handle_submitLocationReport(proofs)){
+                        System.out.println("Proofs Processed Sucessfully");
+                    }
+                    break;
                 case "Hello!!":
                     System.out.println("----------------------------------------");
                     System.out.println("received Hello from user");
@@ -495,7 +520,7 @@ public class SecureServer extends Thread {
             //----------------------------------------------------- //
             
 
-            proof = "2 " + from + "location" + "witness" + "location witness";
+            //proof = "2 " + from + "location" + "witness" + "location witness";
             JsonObject replyJson = parser.parse​("{}").getAsJsonObject();
             {
                 JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
@@ -512,8 +537,8 @@ public class SecureServer extends Thread {
                 infoJson.addProperty("message", "Hi!!");
                 replyJson.add("info", infoJson);
 
-                infoJson.addProperty("proof", proof);
-                replyJson.add("info", infoJson);
+                //infoJson.addProperty("proof", proof);
+                //replyJson.add("info", infoJson);
 
             }
 
@@ -734,6 +759,137 @@ public class SecureServer extends Thread {
 
 
 
+
+
+
+    //----------------------------------------------------- //
+    //                  [Request Handlers]                  //
+    //----------------------------------------------------- //
+
+    public boolean handle_submitLocationReport(String proofs){
+
+        System.out.println("----------------------------------------");
+        System.out.println("Processing Proofs Validity...\n");
+
+
+        //----------------------------------------------------- //
+        //       [Decode B64 String Proofs To Obtain Byte Array]     //
+        //----------------------------------------------------- //
+        
+        byte[] proofBytes =  Base64.getMimeDecoder().decode(proofs);
+        String proofArrayString = new String(proofBytes);
+        // Remove "[" and "]"
+        String sub = proofArrayString.substring( 1, proofArrayString.length() - 1 );
+        // The split space is important to properly parse the array!
+        String[] proofArray = sub.split(", ");
+
+        ArrayList<String> proofArrayList = new ArrayList<String>(Arrays.asList(proofArray));
+
+        //----------------------------------------------------------------- //
+        // The proof Array List its an array of Strings                     //
+        // but this strings are actually JSONs!                             //
+        // ArrayList proofs = [proofJSON1, proofJSON2, ... , proofJSONn]    //
+        //----------------------------------------------------------------- //
+        //  proofJSON1 = {                                                  //
+        //          "from" : witnessPort,                                   //
+        //          "signature" : witnessSignature                          //
+        //  }                                                               //
+        //----------------------------------------------------------------- //
+
+        //----------------------------------------------------- //
+        //              [Decode B64 String JSONs]               //
+        //----------------------------------------------------- //
+        for(int i = 0; i < proofArrayList.size(); i++) {
+            //System.out.println(i + "->" + proofArrayList.get(i));
+            byte[] jsonBytes =  Base64.getMimeDecoder().decode(proofArrayList.get(i));
+            String jsonBytesString = new String(jsonBytes);
+            //System.out.println(jsonBytesString);
+
+            //----------------------------------------------------- //
+            //                  [Parse JSON Proof]                    //
+            //----------------------------------------------------- //
+            String witness = null, signature = null;
+            JsonParser parser = new JsonParser();
+            JsonObject jsonProof = parser.parse​(jsonBytesString).getAsJsonObject();
+
+            {
+                JsonObject infoJson = jsonProof.getAsJsonObject("info");
+                witness = infoJson.get("witness").getAsString();
+                signature = infoJson.get("responseLocationProof").getAsString();
+
+            }
+
+
+            System.out.println("-------------------------------------");
+            System.out.println("Json Received From Server: ");
+            System.out.println("witness: " + witness);
+            System.out.println("signature: " + signature);
+            System.out.println("-------------------------------------");
+
+
+
+            // ---------------------------------------------------------------- //
+            // Server knows all client public keys
+            // ---------------------------------------------------------------- //
+            PublicKey witnessPublicKey = null; 
+
+            String witnessPublicKeyPath = "keys/shared/" + witness + "/client_pub.key";
+            
+            
+            try{
+                witnessPublicKey = readPublicKey(witnessPublicKeyPath);            
+            }
+            catch (Exception ex) {  
+                System.err.println("Error Reading Witness Public Key.\n"); 
+                System.err.println("Check if There is a directory: " + witnessPublicKeyPath + " .\n"); 
+                System.err.println("Without the Witness" + witness + 
+                    "Public Key, The Server can not Validate The proof.\n"); 
+                
+            }
+
+            
+           
+            //byte[] signatureBytes = signature.getBytes();
+            byte[] proofDecipheredBytesB64 = null;
+            String proofDecipheredStringB64 = null;
+
+            byte[] proofDecipheredBytes = null;
+            String proofDecipheredString = null;
+            Cipher cipher_asym  = null;
+
+            byte[] signatureBytes =  Base64.getMimeDecoder().decode(signature);
+            try{
+                // Decipher S with public key of sender to get H back 
+                cipher_asym = Cipher.getInstance(CIPHER_ASYM);  
+                cipher_asym.init(Cipher.DECRYPT_MODE, witnessPublicKey);
+
+                proofDecipheredBytesB64 = cipher_asym.doFinal(signatureBytes);     
+                proofDecipheredStringB64 = new String(proofDecipheredBytesB64);
+
+                proofDecipheredBytes =  Base64.getMimeDecoder().decode(proofDecipheredStringB64);
+                proofDecipheredString = new String(proofDecipheredBytes);
+                System.err.println("Proof Deciphered!!!!" + proofDecipheredString + " .\n"); 
+
+            
+                
+            }
+            catch (Exception ex) {  
+                System.err.println("Error Deciphering Client Signature.\n");
+            }
+                
+
+
+        }
+
+
+        System.out.println("----------------------------------------");
+
+
+
+        return true;
+    }
+
+
     //----------------------------------------------------- //
     //              [Key Reading Functions]                 //
     //----------------------------------------------------- //
@@ -766,58 +922,6 @@ public class SecureServer extends Thread {
         KeyFactory keyFacPriv = KeyFactory.getInstance("RSA");
         PrivateKey priv = keyFacPriv.generatePrivate(privSpec);
         return priv;
-    }
-
-
-    //----------------------------------------------------- //
-    //                  [Request Handlers]                  //
-    //----------------------------------------------------- //
-
-    public static boolean handle_requestLocationProof(PrintWriter sender){
-        try{
-            sender.println("Proof");
-            return true;
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return false;
-    }
-
-
-
-    //----------------------------------------------------- //
-    //             [Function To Create a JSON]              //
-    //----------------------------------------------------- //
-    private static JsonObject createJsonMessage(String userID, String serverMessage){
-        
-        
-        JsonParser parser = new JsonParser();
-        JsonObject requestJson = parser.parse​("{}").getAsJsonObject();
-        {
-            JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
-            infoJson.addProperty("from", "Server");
-            requestJson.add("info", infoJson);
-            
-            infoJson.addProperty("to", userID);
-            requestJson.add("info", infoJson);
-
-            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
-            infoJson.addProperty("timestamp", timestamp.getTime());
-            requestJson.add("info", infoJson);
-
-            infoJson.addProperty("message", serverMessage);
-            requestJson.add("info", infoJson);
-
-
-        }
-
-
-        System.out.println("-------------------------------------");
-        System.out.println("Request message: " + requestJson);
-        System.out.println("-------------------------------------");
-        
-        return requestJson;
-        
     }
 
 
