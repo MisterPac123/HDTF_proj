@@ -86,19 +86,19 @@ public class SecureServer extends Thread {
             // If this happens, Server can NOT confirm user's authenticity  //
             // and imediately knows that something wrong is going on.       //
             //------------------------------------------------------------- //
+            System.out.println("Server is Listening on Port: " + this.serverPort);
+            System.out.println("Waiting for Connections");
 
             System.out.println(
             "=================================================="+ 
             "==================================================\n");
-            System.out.println("[Treating Start Communication Request Message]\n");
-
+            System.out.println("[Start Communication Request Message]\n");
             System.out.println(
             "=================================================="+ 
             "==================================================\n");
 
             
-            System.out.println("Server is Listening on Port: " + this.serverPort);
-            System.out.println("Waiting for Connections");
+
 
             ServerSocket serverSocket = null;
             Socket clientSocket = null;
@@ -142,8 +142,6 @@ public class SecureServer extends Thread {
                 byte[] inStartRequest_bytes_decoded =  Base64.getMimeDecoder().decode(inStartRequestFromClient_B64_bytes);
 
                 startRequestString = new String(inStartRequest_bytes_decoded);
-                System.out.println("inStartRequest_string" + startRequestString);
-          
 
             }
 
@@ -216,11 +214,6 @@ public class SecureServer extends Thread {
 
             }
 
-
-            System.out.println("-------------------------------------");
-            System.out.println("Request message: " + startCommunicationReplyJson);
-            System.out.println("-------------------------------------");
-
             
             // Encode request in base64
             byte[] startCommunicationReply_bytes = startCommunicationReplyJson.toString().getBytes();
@@ -231,10 +224,6 @@ public class SecureServer extends Thread {
             
             try {
                 DataOutputStream outToClient = new DataOutputStream(clientSocket.getOutputStream());
-                //System.out.println("\nByte array printed before sending to server:\n");
-
-
-                System.out.println("Sending Request");
                 outToClient.writeInt(startCommunicationReply_B64.length); // write length of the message
                 outToClient.write(startCommunicationReply_B64);      
             }
@@ -267,10 +256,6 @@ public class SecureServer extends Thread {
             //--------------------------------------------------------- //
 
 
-            System.out.println("Secure Connection Sucessfully Established With Client: " 
-                + clientSocket);
-
-
             String request_string = null;
             try{
                 
@@ -284,8 +269,6 @@ public class SecureServer extends Thread {
                 for(int i = 0; i < request_B64_data.length; i++) {
                     request_B64_data[i] = inFromClient.readByte();
                 }
-                System.out.println("inFromClient" + inFromClient.toString());
-
                 //----------------------------------------------------- //
                 //              [Decode Request JSON ]                  //
                 //----------------------------------------------------- //
@@ -334,8 +317,6 @@ public class SecureServer extends Thread {
                 cipher_asym = Cipher.getInstance(CIPHER_ASYM);
                 cipher_asym.init(Cipher.DECRYPT_MODE, this.serverPrivateKey);
                 ck_bytes_deciphered = cipher_asym.doFinal(ck_bytes);
-                
-                //String ck_bytes_deciphered_string = new String(ck_bytes_deciphered);
             
             }
 
@@ -362,10 +343,6 @@ public class SecureServer extends Thread {
                 cm_bytes_deciphered = cipher_sym.doFinal(cm_bytes);
                 message = new String(cm_bytes_deciphered);
                 
-                System.out.println("----------------------------------------");
-                System.out.println("Deciphered data Message:" + message);
-                System.out.println("Confidentiality ensured.");
-                System.out.println("----------------------------------------");             
             }
 
             catch (Exception ex) {  
@@ -376,7 +353,10 @@ public class SecureServer extends Thread {
             //----------------------------------------------------- //
             //                  [Parse CM JSON ]                    //
             //----------------------------------------------------- //
-            
+            // Proofs Are Sent As Strings But Are Arrays Of JSONs.  //
+            // There is an handler for Parsing the proofs Received. //
+            //------------------------------------------------------//
+
             JsonObject cm_json = parser.parse​(message).getAsJsonObject();
             
             from = null; to = null; timestampReceived = null; String clientMessage = null; String proofs = null;
@@ -392,13 +372,6 @@ public class SecureServer extends Thread {
 
             }
             
-            System.out.println("-------------------------------------");
-            System.out.println("Json Received From Client: ");
-            System.out.println("from: " + from);
-            System.out.println("to: " + to);
-            System.out.println("timestamp: " + timestampReceived);
-            System.out.println("message: " + clientMessage);
-            System.out.println("-------------------------------------");
             
             //------------------------------------------------------------- //
             //                  Check freshness of message
@@ -482,18 +455,30 @@ public class SecureServer extends Thread {
             //====================================================== //
             //====================================================== //
             
+            JsonObject replyJson = null;
             switch (clientMessage){
                 case "submitLocationReport":
-                    System.out.println("received proof request from user");
+                    
                     if(handle_submitLocationReport(proofs)){
                         System.out.println("Proofs Processed Sucessfully");
+                        replyJson  = submitLocationReportReply(from, to);
+
                     }
                     break;
+
                 case "Hello!!":
                     System.out.println("----------------------------------------");
                     System.out.println("received Hello from user");
                     System.out.println("----------------------------------------");
                 break;
+                default:
+                    System.out.println("----------------------------------------");
+                    System.out.println("An Error Occured Communication With The Server.\n");
+                    System.out.println("Server Can Not Understand Your Request " + 
+                        clientMessage + " \n");
+                    System.out.println("----------------------------------------");
+                break;
+
             }
 
 
@@ -503,44 +488,9 @@ public class SecureServer extends Thread {
             //              [Reply To Server's Request]              //
             //====================================================== //
             //====================================================== //
-            
-            System.out.println(
-            " =================================================\n"
-            + " =================================================\n");
-            System.out.println("SERVER -> CLIENT \n");
-            System.out.println(
-            " =================================================\n"
-            + " =================================================\n");
 
 
-            //----------------------------------------------------- //
-            //              [Create Response Message ]              //
-            // Might be useful to have a funcion to search for a    //
-            // file in a database or maybe a test file is be enough //
-            //----------------------------------------------------- //
-            
 
-            //proof = "2 " + from + "location" + "witness" + "location witness";
-            JsonObject replyJson = parser.parse​("{}").getAsJsonObject();
-            {
-                JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
-                infoJson.addProperty("from", "Server");
-                replyJson.add("info", infoJson);
-                
-                infoJson.addProperty("to", from);
-                replyJson.add("info", infoJson);
-
-                Timestamp current_timestamp = new Timestamp(System.currentTimeMillis());
-                infoJson.addProperty("timestamp", current_timestamp.getTime());
-                replyJson.add("info", infoJson);
-
-                infoJson.addProperty("message", "Hi!!");
-                replyJson.add("info", infoJson);
-
-                //infoJson.addProperty("proof", proof);
-                //replyJson.add("info", infoJson);
-
-            }
 
             System.out.println("-------------------------------------");
             System.out.println("Response message: " + replyJson);
@@ -572,17 +522,12 @@ public class SecureServer extends Thread {
             try{
                 // Cipher message M with key KM to produce cryptogram CM 
                 server_cm_bytes = cipher_km.doFinal(serverData);
-                System.out.println("---------------------------------------");
-                //System.out.println("Cipher message serverData with key KM to produce cryptogram CM");
-                //System.out.println("serverData length " + serverData.length);
-                //System.out.println("cm_bytes length " + server_cm_bytes.length);
-                //System.out.println("---------------------------------------");
-
             }
             catch (Exception ex) {  
                 System.err.println("Error Ciphering message M with key KM to produce cryptogram CM .\n");
                 return;
             }
+            
             byte[] server_ck_bytes = null;
             try{
                 // Cipher key KM with receiver’s public Key  to produce 
@@ -590,10 +535,6 @@ public class SecureServer extends Thread {
                 Cipher cipher_rpk = Cipher.getInstance(CIPHER_ASYM);
                 cipher_rpk.init(Cipher.ENCRYPT_MODE, this.clientPublicKey);
                 server_ck_bytes = cipher_rpk.doFinal(this.symmetricKey.getEncoded());
-                //System.out.println("---------------------------------------");
-                //System.out.println("Cipher key KM with receiver’s public Key to produce cryptogram CK ");
-                //System.out.println("server_ck_bytes length " + server_ck_bytes.length);
-                //System.out.println("---------------------------------------");
             }
 
             catch (Exception ex) {  
@@ -606,10 +547,6 @@ public class SecureServer extends Thread {
             String cm_B64String = Base64.getEncoder().encodeToString(server_cm_bytes);
             byte[] cm_B64 = cm_B64String.getBytes();
 
-            //System.out.println("---------------------------------------");
-            //System.out.println("Encode CM in base64 ");
-            //System.out.println("cm_B64 length " + cm_B64.length);
-            //System.out.println("---------------------------------------");
 
             // Encode KM in base64
 
@@ -617,13 +554,7 @@ public class SecureServer extends Thread {
             String ck_B64String = Base64.getEncoder().encodeToString(server_ck_bytes);
             byte[] ck_B64 = ck_B64String.getBytes();
 
-            //System.out.println("---------------------------------------");
-            //System.out.println("Encode KM in base64 ");
-            //System.out.println("ck_B64 length " + ck_B64.length);
-            //System.out.println("---------------------------------------");
-            
-
-            
+                    
 
             //--------------------------------------------------------- //
             //      [Cipher Data: Integrity and Authentication ]        //
@@ -636,8 +567,7 @@ public class SecureServer extends Thread {
             byte[] digestB64bytes = null;
             try{
                 // Digest message M to produce hash H 
-                //System.out.println("---------------------------------------");
-                //System.out.println("Digest message M to produce hash H ");
+
                 MessageDigest messageDigest = MessageDigest.getInstance(DIGEST_ALGO);
                 messageDigest.update(serverData);
                 byte[] digestBytes = messageDigest.digest();
@@ -646,8 +576,6 @@ public class SecureServer extends Thread {
                 // Encode digest in base64
                 String serverDigestB64String = Base64.getEncoder().encodeToString(digestBytes);
                 digestB64bytes = serverDigestB64String.getBytes();
-                //System.out.println("digestB64bytes length " + digestB64bytes.length);
-                //System.out.println("---------------------------------------");
             }   
             catch (Exception ex) {  
                 System.err.println("Error Digest message M to produce hash H.\n");
@@ -662,10 +590,7 @@ public class SecureServer extends Thread {
 
 
                 byte[] server_signature_bytes = sign.doFinal(digestB64bytes);
-                signatureB64String = Base64.getEncoder().encodeToString(server_signature_bytes);
-                //System.out.println("---------------------------------------");
-                //System.out.println("server_signature_bytes length " + server_signature_bytes.length);
-                //System.out.println("server_signature_B64bytes length " + signatureB64String.getBytes().length);               
+                signatureB64String = Base64.getEncoder().encodeToString(server_signature_bytes);            
             }
 
             catch (Exception ex) {  
@@ -696,11 +621,9 @@ public class SecureServer extends Thread {
             // Encode response in base64
 
             byte[] response_bytes = response.toString().getBytes();
-            //System.out.println("response_bytes length " + response_bytes.length);
 
             String response_B64String = Base64.getEncoder().encodeToString(response_bytes);
             byte[] response_B64 = response_B64String.getBytes();
-            //System.out.println("response_B64 length " + response_B64.length);
 
             
 
@@ -714,9 +637,7 @@ public class SecureServer extends Thread {
                         new DataOutputStream(clientSocket.getOutputStream()); //send byte array with changes back to the client
 
                 outToClient.writeInt(response_B64.length); // write length of the message
-                outToClient.write(response_B64);           // write the message
-
-                System.out.println("Test Response Sent To Client.");                
+                outToClient.write(response_B64);           // write the message             
             }
 
             catch (Exception ex) {  
@@ -887,6 +808,36 @@ public class SecureServer extends Thread {
 
 
         return true;
+    }
+    public JsonObject submitLocationReportReply(String from, String to){
+        //----------------------------------------------------- //
+        //              [Create Response Message ]              //
+        // Might be useful to have a funcion to search for a    //
+        // file in a database or maybe a test file is be enough //
+        //----------------------------------------------------- //
+        
+        JsonParser parser = new JsonParser();
+        
+        JsonObject replyJson = parser.parse​("{}").getAsJsonObject();
+        {
+            JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+            infoJson.addProperty("from", to);
+            replyJson.add("info", infoJson);
+            
+            infoJson.addProperty("to", from);
+            replyJson.add("info", infoJson);
+
+            Timestamp current_timestamp = new Timestamp(System.currentTimeMillis());
+            infoJson.addProperty("timestamp", current_timestamp.getTime());
+            replyJson.add("info", infoJson);
+
+            infoJson.addProperty("message", "Hi!!");
+            replyJson.add("info", infoJson);
+
+            //infoJson.addProperty("proof", proof);
+            //replyJson.add("info", infoJson);
+        }
+        return replyJson;
     }
 
 
