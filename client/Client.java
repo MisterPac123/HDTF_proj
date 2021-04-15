@@ -87,6 +87,7 @@ public class Client {
                         break;
                     }
                     case "2" -> {
+                        //TODO: test inputs (axisX and axisY)
                         if(command.length!=4){
                             System.out.println("Wrong arguments. Expected three argument: 2 (int) epoch (int) axisX (int) axisY");
                         }
