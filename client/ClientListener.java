@@ -22,7 +22,7 @@ public class ClientListener extends Thread {
     private int port;
     private String userID;
     private Socket socket;
-    private final static String CIPHER_ASYM = "RSA/ECB/PKCS1Padding";
+    
 
     public ClientListener(String userID, int port) {
         this.port = port;
@@ -83,7 +83,9 @@ public class ClientListener extends Thread {
             String proofSigned = signProof(proof, port);
             sender.println(proofSigned);
             return true;
-        } catch (Exception e) {
+        } 
+
+        catch (Exception e) {
             e.printStackTrace();
         }
         return false;
@@ -122,6 +124,13 @@ public class ClientListener extends Thread {
         return false;
     }
 
+
+
+
+    // =============================================================================== //
+    //                               [WITNESS SIGN PROOF]
+    // =============================================================================== //
+
     public static String signProof(String proof, int port){
 
         System.out.println("----------------------------------------");
@@ -131,74 +140,10 @@ public class ClientListener extends Thread {
         System.out.println("----------------------------------------");
 
 
-        PrivateKey rsaUserPrivKey = null; 
-
-
-        // ---------------------------------------------------------------- //
-        // Keys Are Generated When A client Inits! But is better to Check
-        // ---------------------------------------------------------------- //
-
-        String userPrivateKeyDir = "keys/private/" + port + "/client_priv.key";
+        ClientWitness clientWitness = new ClientWitness(port);
+        String proofSigned = clientWitness.generateSinature(proof);
+        return proofSigned;
         
-        
-        try{
-            rsaUserPrivKey = readPrivateKey(userPrivateKeyDir);            
-        }
-        catch (Exception ex) {  
-            System.err.println("Error Reading Client Private Key.\n"); 
-            System.err.println("Check if There is a directory: " + userPrivateKeyDir + " .\n"); 
-            System.err.println("Without the Private Key, witness " + port +
-                " can not sign the proof! .\n"); 
-            
-        }
-
-        //return
-        byte[] proofBytes = proof.toString().getBytes();
-        String proofBytesB64String = Base64.getEncoder().encodeToString(proofBytes);
-        byte[] proofBytesB64Bytes = proofBytesB64String.getBytes();
-        
-        // Cipher proof with private key
-        Cipher sign = null;
-        try{
-            sign = Cipher.getInstance(CIPHER_ASYM);
-            sign.init(Cipher.ENCRYPT_MODE, rsaUserPrivKey);
-        }
-        catch (Exception ex) {  
-            System.err.println("Error Creating Client Signature!\n");  
-            System.err.println("Client Priv Key Might Not Be Correct.\n");  
-            
-        } 
-
-        byte[] signature_bytes = null;
-        try{
-            signature_bytes = sign.doFinal(proofBytesB64Bytes);
-        }
-        catch (Exception ex) {  
-            System.err.println("Error Converting Client Signature to Bytes.\n");  
-            
-        } 
-
-        
-        String signatureB64String = Base64.getEncoder().encodeToString(signature_bytes);
-        return signatureB64String;
-        
-    }
-    // =============================================================================== //
-    //                               [READ KEYS FUNCTIONS]
-    // =============================================================================== //
-    private static byte[] readFile(String path) throws FileNotFoundException, IOException {
-        FileInputStream fis = new FileInputStream(path);
-        byte[] content = new byte[fis.available()];
-        fis.read(content);
-        fis.close();
-        return content;
-    }
-    public static PrivateKey readPrivateKey(String privateKeyPath) throws Exception {
-        byte[] privEncoded = readFile(privateKeyPath);
-        PKCS8EncodedKeySpec privSpec = new PKCS8EncodedKeySpec(privEncoded);
-        KeyFactory keyFacPriv = KeyFactory.getInstance("RSA");
-        PrivateKey priv = keyFacPriv.generatePrivate(privSpec);
-        return priv;
-    }
+    };
 
 }

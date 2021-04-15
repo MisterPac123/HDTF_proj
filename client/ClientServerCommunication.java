@@ -16,12 +16,11 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 public class ClientServerCommunication {
-//public class ClientServerCommunication{
-    private String clientRequestString;
+    private static String clientRequestString;
 
-    private int userPort;
-    private String userID;
-    private Socket socket;
+    private static int userPort;
+    private static String userID;
+    private static Socket socket;
 
     private final static String CIPHER_ASYM = "RSA/ECB/PKCS1Padding";
     private final static String CIPHER_SYM = "AES/ECB/PKCS5Padding";
@@ -38,34 +37,30 @@ public class ClientServerCommunication {
 
     private ArrayList<Long> timestampsAlreadyUsed = new ArrayList<Long>();
     private List<String> proofs = new ArrayList<String>();
+
     private InetAddress serverAddress = null;
     private int serverPort = 8000;
   
     public ClientServerCommunication(String userID, int userPort, 
-        PrivateKey clientPrivateKey, PublicKey clientPublicKey, 
-        PublicKey serverPublicKey, Key symmetricKey, 
-        InetAddress serverAddress, int serverPort,
         String clientRequestString, List<String> proofs
         ){
 
         this.userPort = userPort;
         this.userID = userID;
 
-        this.clientPublicKey = clientPublicKey;
-        this.clientPrivateKey = clientPrivateKey;
-        this.serverPublicKey = serverPublicKey;
-        this.symmetricKey = symmetricKey;
-
-        this.serverAddress = serverAddress;
-        this.serverPort = serverPort;
-
         this.clientRequestString = clientRequestString;
         this.proofs = proofs;
 
     };
 
-    public void run() {
+    public void startSecureCommunication() {
 
+        try{
+            this.serverAddress = InetAddress.getByName("localhost");
+        }
+        catch (Exception ex) {  
+            System.err.println(ex);  
+        } 
 
         //====================================================== //
         //   [Create Start Communication Request Message ]       //
@@ -165,9 +160,7 @@ public class ClientServerCommunication {
             byte[] inStartReply_bytes_decoded =  Base64.getMimeDecoder().decode(inStartReplyFromServer_B64_bytes);
 
             startReplyString = new String(inStartReply_bytes_decoded);
-            System.out.println("inStartRequest_string" + startReplyString);
-      
-
+            
         }
 
         catch (Exception ex) {  
@@ -403,14 +396,6 @@ public class ClientServerCommunication {
         //             [Receive Response From Server]            //
         //====================================================== //
 
-        
-        System.out.println(
-        " =================================================\n"
-        + " =================================================\n");
-        System.out.println("SERVER -> CLIENT \n");
-        System.out.println(
-        " =================================================\n"
-        + " =================================================\n");
 
         // Answer is now received from Server
         byte[] response_B64_data = null;
@@ -603,8 +588,6 @@ public class ClientServerCommunication {
 
 
         
-
-
         // If recalculated hash H’ is equal to deciphered hash H then 
         // the message was not modified and was sent by the sender  
 
@@ -639,6 +622,156 @@ public class ClientServerCommunication {
         } 
 
 
+    }
+
+
+
+    // =============================================================================== //
+    //                           [KEY GENERATION FOR EACH USER]
+    // =============================================================================== //
+
+    public static void generateKeys(){
+
+        // ----------------------------------------------------------------- //
+        //                          Keys Generation
+        // ----------------------------------------------------------------- //
+        AESKeyGenerator aesKeyGenerator = null;
+        RSAKeyGenerator rsaKeyGenerator = null;
+        Key aesKey  =  null;
+
+
+        KeyPair clientKeyPair = null;
+        PublicKey rsaUserPubKey = null; 
+        PrivateKey rsaUserPrivKey = null; 
+        PublicKey serverPubKey = null;
+
+        String userSharedKeysDir = "keys/shared/" + userPort;
+        String userPrivateKeyDir = "keys/private/" + userPort;
+        String serverKeyPath = "keys/shared/server/server_pub.key";
+        
+        try{
+            serverPubKey = readPublicKey(serverKeyPath);            
+        }
+        catch (Exception ex) {  
+            System.err.println("Error Reading Server Public Key.\n"); 
+            System.err.println("Check if There is a directory: " + serverKeyPath + " .\n"); 
+            return;
+        }
+
+        try{
+            File sharedDir = new File(userSharedKeysDir);
+            if (!sharedDir.exists()){
+                sharedDir.mkdirs();
+            }
+            File privDir = new File(userPrivateKeyDir);
+            if (!privDir.exists()){
+                privDir.mkdirs();
+            }
+        }
+
+        catch (Exception ex) {  
+            System.err.println("Error Creating The Keys Directories For User.\n"); 
+            return;
+        } 
+        try{
+            // Asssuming userID is unique.
+            String userSharedAESKeyPath = userSharedKeysDir + "/aes.key";
+            aesKeyGenerator = new AESKeyGenerator(userSharedAESKeyPath);
+
+            try{
+                aesKey = aesKeyGenerator.read(); 
+            }
+            catch (Exception ex) {  
+                System.out.println("Symmetric Key Does Not Exists Yet.\n");
+                System.out.println("Generating Symmetric Key.\n");
+                aesKeyGenerator.write();  
+                aesKey = aesKeyGenerator.read(); 
+            } 
+        }
+        catch (Exception ex) {  
+            System.err.println("Error Generating Symmetric Key.\n");
+            System.err.println("Ckeck AESKeyGenerator\n");    
+            return;
+        } 
+        
+        try{
+            // Asssuming port is unique.
+            String userSharedRSAKeyPath = userSharedKeysDir + "/client_pub.key";
+            String userPrivateRSAKeyPath = userPrivateKeyDir + "/client_priv.key";
+            //String userPrivKeyDir 
+            rsaKeyGenerator = new RSAKeyGenerator(userSharedRSAKeyPath, userPrivateRSAKeyPath);
+
+            try{
+                clientKeyPair = rsaKeyGenerator.read(); 
+                rsaUserPrivKey = clientKeyPair.getPrivate();
+                rsaUserPubKey = clientKeyPair.getPublic();
+            }
+            catch (Exception ex) {  
+                System.out.println("Asymmetric Key Pair Does Not Exists Yet.\n");
+                System.out.println("Generating Asymmetric Key Pair.\n");
+                rsaKeyGenerator.write();  
+                clientKeyPair = rsaKeyGenerator.read(); 
+                rsaUserPrivKey = clientKeyPair.getPrivate();
+                rsaUserPubKey = clientKeyPair.getPublic();
+            } 
+        }
+        catch (Exception ex) {  
+            System.err.println("Error Generating Key Pair.\n");
+            return;
+        } 
+        
+        clientPrivateKey = rsaUserPrivKey;
+        clientPublicKey = rsaUserPubKey;
+        symmetricKey = aesKey;
+        serverPublicKey = serverPubKey;
+
+    };
+
+    // =============================================================================== //
+    //                               [READ KEYS FUNCTIONS]
+    // =============================================================================== //
+    private static byte[] readFile(String path) throws FileNotFoundException, IOException {
+        FileInputStream fis = new FileInputStream(path);
+        byte[] content = new byte[fis.available()];
+        fis.read(content);
+        fis.close();
+        return content;
+    }
+
+    public static Key readSecretKey(String secretKeyPath) throws Exception {
+        byte[] encoded = readFile(secretKeyPath);
+        SecretKeySpec keySpec = new SecretKeySpec(encoded, "AES");
+        return keySpec;
+    }
+
+    public static PublicKey readPublicKey(String publicKeyPath) throws Exception {
+        //System.out.println("Reading public key from file " + publicKeyPath + " ...");
+        byte[] pubEncoded = readFile(publicKeyPath);
+        X509EncodedKeySpec pubSpec = new X509EncodedKeySpec(pubEncoded);
+        KeyFactory keyFacPub = KeyFactory.getInstance("RSA");
+        PublicKey pub = keyFacPub.generatePublic(pubSpec);
+        return pub;
+    }
+
+    public static PrivateKey readPrivateKey(String privateKeyPath) throws Exception {
+        byte[] privEncoded = readFile(privateKeyPath);
+        PKCS8EncodedKeySpec privSpec = new PKCS8EncodedKeySpec(privEncoded);
+        KeyFactory keyFacPriv = KeyFactory.getInstance("RSA");
+        PrivateKey priv = keyFacPriv.generatePrivate(privSpec);
+        return priv;
+    }
+
+
+    public static void deleteDirectory(String dir) {
+
+        
+        File index = new File(dir);
+        String[]entries = index.list();
+        for(String s: entries){
+            File currentFile = new File(index.getPath(),s);
+            currentFile.delete();
+        }
+        index.delete();
     }
 
 }
