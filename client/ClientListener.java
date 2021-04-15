@@ -10,15 +10,16 @@ public class ClientListener extends Thread {
     private int port;
     private String userID;
     private Socket socket;
+    private String type;
 
-    public ClientListener(String userID, int port) {
+    public ClientListener(String userID, int port, String type) {
         this.port = port;
         this.userID=userID;
-
+        this.type=type;
     }
 
     public void run() {
-        if(addUser(this.userID, this.port)) {
+        if(addUser(this.userID, this.port, this.type)) {
             while (true) {
                 try (ServerSocket serverSocket = new ServerSocket(port)) {
                     System.out.println("Client is listening on port " + port);
@@ -31,7 +32,6 @@ public class ClientListener extends Thread {
                     PrintWriter sender = new PrintWriter(output, true);
 
                     String message;
-                    //message = receiver.readLine();
                     do {
                         message = receiver.readLine();
                         System.out.println("Client:" + message);
@@ -39,8 +39,6 @@ public class ClientListener extends Thread {
                             case "requestLocationProof":
                                 if (handleRequestLocationProof(sender)) {
                                     System.out.println("Proof sent");
-                                    //submitLocationReport(userId, ep, report, …)
-                                    //Specification: user userId submits a location report.
                                 }
                                 break;
                         }
@@ -69,8 +67,8 @@ public class ClientListener extends Thread {
         return false;
     }
 
-    public static boolean addUser(String userID, int port){
-        try {//Check if user is already in the file, or if it is with the same port
+    public static boolean addUser(String userID, int port, String type){
+        try {//Check if user is already in the file, or if it is with the same port, or if already exists a super user
             boolean newClient = true;
             File portsFile = new File("usersPorts.txt");
             if(portsFile.exists()) {
@@ -80,6 +78,12 @@ public class ClientListener extends Thread {
                     if (data[0].equals(userID) && Integer.parseInt(data[1]) != port) {
                         System.out.println("Error creating user: UserID already exists with port " + data[1]);
                         return false;
+                    }
+                    if (type.equals("super") && data[0].length() >= 3) {
+                        if (data[0].startsWith("SU_")){
+                            System.out.println("Error creating user: Super User already exists");
+                            return false;
+                        }
                     }
                     if (data[0].equals(userID) && Integer.parseInt(data[1]) == port) {
                         newClient = false;
