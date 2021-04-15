@@ -2,9 +2,21 @@ package client;
 
 import java.util.Scanner;
 
-import java.net.*;
 import java.io.*;
-import java.util.StringJoiner;
+import java.util.*;
+import java.security.*;
+import java.security.spec.*;
+import javax.crypto.*;
+import javax.crypto.spec.*;
+
+import java.net.*;
+
+
+import com.google.gson.*;
+import java.sql.Timestamp;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.security.Key;
 
 public class Client {
 
@@ -24,7 +36,9 @@ public class Client {
         }
     }
 
-
+    // =============================================================================== //
+    //                                   [MAIN]
+    // =============================================================================== //
     public static void main(String[] args) {
 
         //Check arguments
@@ -57,59 +71,80 @@ public class Client {
             return;
         }
 
-        //Start listener socket
-        new ClientListener(userID, port, type).start();
 
-        //read input command
-        try {
-            BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-            String text;
-            System.out.println("\nWelcome " + userID + "\n\n");
-            do {
-                System.out.println("Choose option:\n     1 - Request Location Proof\n     2 - add Location");
-                text = reader.readLine();
-                String[] command = text.split(" ");
-                switch (command[0]) {
-                    case "1" -> {
-                        if(command.length!=2){
-                            System.out.println("Wrong arguments. Expected one argument: 1 (int) epoch");
-                            continue;
-                        }
-                        try {
-                            epoch = Integer.parseInt(command[1]);
-                            requestLocationProof(epoch);
-                        }catch (NumberFormatException e) {
-                            System.out.println("Wrong arguments. Expected one argument: 1 (int) epoch");
-                            continue;
-                        }
-                        //submitLocationReport(userId, ep, report, …)
-                        //Specification: user userId submits a location report.
-                        break;
-                    }
-                    case "2" -> {
-                        //TODO: test inputs (axisX and axisY)
-                        if(command.length!=4){
-                            System.out.println("Wrong arguments. Expected three argument: 2 (int) epoch (int) axisX (int) axisY");
-                        }
-                        try {
-                            epoch = Integer.parseInt(command[1]);
-                            int axisX = Integer.parseInt(command[2]);
-                            int axisY = Integer.parseInt(command[3]);
-                            addLocation(epoch, axisX, axisY);
-                        }catch (NumberFormatException e) {
-                            System.out.println("Wrong arguments. Expected three argument: 2 (int) epoch (int) axisX (int) axisY");
-                            continue;
-                        }
-                        break;
-                    }
-                }
-            } while (!text.equals("3"));
+        if(addUser(userID, port, type)) {
+            //Start listener socket
 
-        } catch (IOException e) {
-            e.printStackTrace();
+            // ----------------------------------------------------------------- //
+            //                          Actions Menu
+            // ----------------------------------------------------------------- //
+            new ClientListener(userID, port, type).start();
+
+            //read input command
+            try {
+                BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+                String text;
+                System.out.println("\nWelcome " + userID + "\n\n");
+                do {
+                    System.out.println("Choose option:\n     1 - Request Location Proof\n     2 - add Location");
+                    text = reader.readLine();
+                    String[] command = text.split(" ");
+                    switch (command[0]) {
+
+                        case "1":
+                            if(command.length!=2){
+                                System.out.println("Wrong arguments. Expected one argument: 1 (int) epoch");
+                                continue;
+                            }
+
+                            List<String> proofs = new ArrayList<String>();
+                            try { 
+                                epoch = Integer.parseInt(command[1]);
+                                proofs = requestLocationProof(epoch);
+                            }
+                            catch (NumberFormatException e) {
+                                System.out.println("Wrong arguments. Expected one argument: 1 (int) epoch");
+                                continue;
+                            }
+
+                            // ----------------------------------------------- //
+                            //               Submit Location Report
+                            // ----------------------------------------------- //
+                            
+                            if(proofs.size() > 0){
+                                submitLocationReport(port, proofs);
+                                break;
+                            }
+                            //submitLocationReport(userId, ep, report, …)
+                            //Specification: user userId submits a location report.
+                            break;
+                        
+                        case "2":
+                            //TODO: test inputs (axisX and axisY)
+                            if(command.length!=4){
+                                System.out.println("Wrong arguments. Expected three argument: 2 (int) epoch (int) axisX (int) axisY");
+                            }
+                            try {
+                                epoch = Integer.parseInt(command[1]);
+                                int axisX = Integer.parseInt(command[2]);
+                                int axisY = Integer.parseInt(command[3]);
+                                addLocation(epoch, axisX, axisY);
+                            }catch (NumberFormatException e) {
+                                System.out.println("Wrong arguments. Expected three argument: 2 (int) epoch (int) axisX (int) axisY");
+                                continue;
+                            }
+                            break;
+                        
+                    }
+                } while (!text.equals("3"));
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            System.out.println("Bye");
+            System.exit(0);
         }
-        System.out.println("Bye");
-        System.exit(0);
+        else return;
     }
 
 
@@ -117,26 +152,58 @@ public class Client {
     //## Main functions ##
     //####################
 
-    private static void requestLocationProof(int epoch) throws IOException {
+
+
+
+    private static List<String> requestLocationProof(int epoch) throws IOException {
         int[] ports = getClientConnections(epoch);
+        List<String> proofs = new ArrayList<String>();
+        JsonParser parser = new JsonParser();
 
         for(int p : ports){
             if(p != 0) {
                 try {
-                    Client_connection client = connectToClient(p);
-                    client.sender.println("requestLocationProof");
 
+                    Client_connection client = connectToClient(p);
+
+                    // This requestLocationProof is a proof signe by the witness;
+                    client.sender.println("requestLocationProof");
                     String responseLocationProof = client.receiver.readLine();
-                    if (responseLocationProof.equals("Proof")) {
-                        System.out.println("user port " + p + " sent a proof");
+
+                    // Its not necessary to check what is the response from the witness!
+                    // Server will chek that!
+                    JsonObject proofJSON = parser.parse​("{}").getAsJsonObject();
+                    {
+                        JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+                        
+                        infoJson.addProperty("witness", p);
+                        proofJSON.add("info", infoJson);
+                        
+                        infoJson.addProperty("responseLocationProof", responseLocationProof);
+                        proofJSON.add("info", infoJson);
+
                     }
+
+                    System.out.println("user port " + p + " sent a proof");
+
+                    // Encode request in base64
+                    byte[] proofBytes = proofJSON.toString().getBytes();
+                    String proofBytesB64String = Base64.getEncoder().encodeToString(proofBytes);
+                    proofs.add(proofBytesB64String);
+                    
                     client.sender.println("bye");
                     client.socket.close();
-                } catch (IOException e) {
+                } 
+                catch (IOException e) {
                     e.printStackTrace();
                 }
             }
         }
+        if(proofs.size() == 0){
+            System.out.println("At Least Two Clients Must be Running!.\n");
+                
+        }
+        return proofs;
     }
 
     private static void addLocation(int epoch, int axisX, int axisY) throws IOException {
@@ -165,5 +232,76 @@ public class Client {
     private static int[] getClientConnections(int epoch){
         Map map= new Map();
         return map.getNearbyUsersPorts(userID, epoch);
+    }
+
+
+
+
+    private static void submitLocationReport(int port, List<String> proofs ) throws IOException {
+
+        for(int i = 0; i < proofs.size(); i++) {
+            System.out.println(proofs.get(i));
+        }
+
+        // ----------------------------------------------------------------- //
+        //                  Client Server Comunication Init
+        // ----------------------------------------------------------------- //
+        String clientRequest = "submitLocationReport";
+
+        ClientServerCommunication clientServerCommunication = 
+        new ClientServerCommunication(userID, port,
+            clientRequest, proofs);
+
+        clientServerCommunication.generateKeys();
+        clientServerCommunication.startSecureCommunication();
+
+    }
+
+
+
+    public static boolean addUser(String userID, int port, String type){
+        try {//Check if user is already in the file, or if it is with the same port, or if already exists a super user
+            boolean newClient = true;
+            File portsFile = new File("usersPorts.txt");
+            if(portsFile.exists()) {
+                Scanner myReader = new Scanner(portsFile);
+                while (myReader.hasNextLine()) {
+                    String data[] = myReader.nextLine().split(" ");
+
+                    if (data[0].equals(userID) && Integer.parseInt(data[1]) != port) {
+                        System.out.println("Error creating user: UserID already exists with port " + data[1]);
+                        return false;
+                    }
+                    
+                    //if (Integer.parseInt(data[1]) == port) {
+                    //    System.out.println("Error creating user: Port: " + data[1] + " already reserved for another client.");
+                    //    return false;
+                    //}
+
+                    if (type.equals("super") && data[0].length() >= 3) {
+                        if (data[0].startsWith("SU_")){
+                            System.out.println("Error creating user: Super User already exists");
+                            return false;
+                        }
+                    }
+                    if (data[0].equals(userID) && Integer.parseInt(data[1]) == port) {
+                        newClient = false;
+                    }
+                }
+                myReader.close();
+            }
+            if(newClient) {
+                FileWriter usersPorts = new FileWriter("usersPorts.txt", true);
+                usersPorts.write(userID + " " + port + "\n");
+                usersPorts.close();
+                System.out.println("Successfully add User.");
+                return true;
+            }
+
+        } catch (IOException e) {
+            System.out.println("ClientListener exception: " + e.getMessage());
+            e.printStackTrace();
+        }
+        return false;
     }
 }
