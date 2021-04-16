@@ -144,7 +144,7 @@ public class Client {
                             obtainLocationReport(port, split[0], ep, proofs);
                         break;
                         case "4":
-                            System.out.println("Por favor insira posição 'x,y' e epoch separados por um espaço:\n");
+                            System.out.println("Por favor insira posição '(x,y)' e epoch separados por um espaço:\n");
                             String text3 = reader.readLine();
                             String[] split2 = text3.split("\\s+");
                             int ep2 = Integer.parseInt(split2[1]);
