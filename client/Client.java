@@ -80,13 +80,14 @@ public class Client {
             // ----------------------------------------------------------------- //
             new ClientListener(userID, port, type).start();
 
+            List<String> proofs = new ArrayList<String>();
             //read input command
             try {
                 BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
                 String text;
                 System.out.println("\nWelcome " + userID + "\n\n");
                 do {
-                    System.out.println("Choose option:\n     1 - Request Location Proof\n     2 - add Location");
+                    System.out.println("Choose option:\n     1 - Request Location Proof\n     2 - add Location\n     3 - ObtainLocationReport\n     4 - ObtainUsersAtLocation(HA user only)\n     5 - Exit\n");
                     text = reader.readLine();
                     String[] command = text.split(" ");
                     switch (command[0]) {
@@ -97,7 +98,7 @@ public class Client {
                                 continue;
                             }
 
-                            List<String> proofs = new ArrayList<String>();
+                            
                             try { 
                                 epoch = Integer.parseInt(command[1]);
                                 proofs = requestLocationProof(epoch);
@@ -134,9 +135,24 @@ public class Client {
                                 continue;
                             }
                             break;
-                        
+
+                        case "3":
+                            System.out.println("Por favor insira UserID e epoch separados por um espaço:\n");
+                            String text2 = reader.readLine();
+                            String[] split = text2.split("\\s+");
+                            int ep = Integer.parseInt(split[1]);
+                            obtainLocationReport(port, split[0], ep, proofs);
+                        break;
+                        case "4":
+                            System.out.println("Por favor insira posição 'x,y' e epoch separados por um espaço:\n");
+                            String text3 = reader.readLine();
+                            String[] split2 = text3.split("\\s+");
+                            int ep2 = Integer.parseInt(split2[1]);
+                            obtainUsersAtLocation(port, split2[0], ep2, proofs);
+                        break;
                     }
-                } while (!text.equals("3"));
+
+                } while (!text.equals("5"));
 
             } catch (IOException e) {
                 e.printStackTrace();
@@ -246,7 +262,7 @@ public class Client {
         // ----------------------------------------------------------------- //
         //                  Client Server Comunication Init
         // ----------------------------------------------------------------- //
-        String clientRequest = "submitLocationReport";
+        String clientRequest = "submitLocationReport " + userID +" 1 " + "(2,2)";
 
         ClientServerCommunication clientServerCommunication = 
         new ClientServerCommunication(userID, port,
@@ -257,6 +273,42 @@ public class Client {
 
     }
 
+
+
+    private static void obtainLocationReport(int port, String userID2, int epoch, List<String> proofs) throws IOException {
+
+
+        //----------------------------------------------------- //
+        //   [Start New Thread Communication With Server ]      //
+        //----------------------------------------------------- //
+        //if(userID == "ha")
+
+        String clientRequest = "obtainLocationReport " + userID2 +" "+ epoch;
+        ClientServerCommunication clientServerCommunication = 
+        new ClientServerCommunication(userID, port,
+            clientRequest, proofs);
+
+        clientServerCommunication.generateKeys();
+        clientServerCommunication.startSecureCommunication();
+
+
+    }
+    private static void obtainUsersAtLocation(int port, String pos, int epoch, List<String> proofs) throws IOException {
+
+        //----------------------------------------------------- //
+        //   [Start New Thread Communication With Server ]      //
+        //----------------------------------------------------- //
+        //if(userID == "ha")
+
+        String clientRequest = "obtainUsersAtLocation " + pos +" "+ epoch;
+        ClientServerCommunication clientServerCommunication = 
+        new ClientServerCommunication(userID, port,
+            clientRequest, proofs);
+
+        clientServerCommunication.generateKeys();
+        clientServerCommunication.startSecureCommunication();
+
+    }
 
 
     public static boolean addUser(String userID, int port, String type){

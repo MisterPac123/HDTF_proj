@@ -454,9 +454,20 @@ public class SecureServer extends Thread {
             //              [Handler The Request ]                    //
             //====================================================== //
             //====================================================== //
+
+            String[] split = clientMessage.split("\\s+");
             
+            //ArrayList<ArrayList<Report>> rep = new ArrayList<ArrayList<Report>>();
+            
+            String epochF = "epoch";
+            boolean fresh_report = false;
+            String emessage = "";
             JsonObject replyJson = null;
-            switch (clientMessage){
+
+
+            byte[] serverData = null;
+
+            switch (split[0]){
                 case "submitLocationReport":
                     
                     if(handle_submitLocationReport(proofs)){
@@ -464,13 +475,104 @@ public class SecureServer extends Thread {
                         replyJson  = submitLocationReportReply(from, to);
 
                     }
+
+                    
+                    try{
+                        String fileName = epochF+split[2]+".txt";
+                        File epochFile = new File(fileName);
+                        if(epochFile.exists()){
+                            fresh_report = check_free(split[2], split[1], split[3]);
+                        }
+                        else{
+
+                        }
+                        if(fresh_report || epochFile.exists()==false){
+                            FileWriter database = new FileWriter(fileName, true);
+                            database.write(split[1] + " " + split[3] + "\n");// POR TUDO
+                            database.close();
+                            System.out.println("Report submitted!");
+                            emessage = "Report submited!";
+                        }
+                        else{
+                            emessage = "Try next epoch!";
+                        }
+                    }
+                    catch (IOException e) {
+                            System.out.println("ClientListener exception: " + e.getMessage());
+                            e.printStackTrace();
+                    }
+                    replyJson = createJsonMessage(from, emessage); 
+                    serverData = replyJson.toString().getBytes();
                     break;
 
-                case "Hello!!":
-                    System.out.println("----------------------------------------");
-                    System.out.println("received Hello from user");
-                    System.out.println("----------------------------------------");
+                case "obtainLocationReport": //obtainLocationReport john epoch
+                    
+                    String fileName = epochF+split[2]+".txt";
+                    File epochFile = new File(fileName);
+                    if(epochFile.exists()){
+                        emessage = lookforReport(fileName, split[1]);
+                    }
+                    else{
+                        emessage = "Location not available";
+                    }
+                    
+                        
+                    String proof = "2 " + from + "location" + "witness" + "location witness";
+                    JsonObject replyJson2 = parser.parse​("{}").getAsJsonObject();
+                    {
+                        JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+                        infoJson.addProperty("from", "Server");
+                        replyJson2.add("info", infoJson);
+                        
+                        infoJson.addProperty("to", from);
+                        replyJson2.add("info", infoJson);
+
+                        Timestamp current_timestamp = new Timestamp(System.currentTimeMillis());
+                        infoJson.addProperty("timestamp", current_timestamp.getTime());
+                        replyJson2.add("info", infoJson);
+
+                        infoJson.addProperty("message", emessage);
+                        replyJson2.add("info", infoJson);
+
+                        infoJson.addProperty("proof", proof);
+                        replyJson2.add("info", infoJson);
+                        serverData = replyJson2.toString().getBytes();
+                    }
+                    break;
+
+                case "obtainUsersAtLocation"://obtainUsersAtLocation position epoch
+                    
+                    if(from.startsWith("SU_")){
+                        String fileName2 = epochF+split[2]+".txt";
+                        emessage = lookforUsers(fileName2, split[1]);
+                    }
+                    else{
+                        emessage = "Permission denied!";
+                    }
+                    
+                    JsonObject replyJson3 = parser.parse​("{}").getAsJsonObject();
+                    {
+                        JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+                        infoJson.addProperty("from", "Server");
+                        replyJson3.add("info", infoJson);
+                        
+                        infoJson.addProperty("to", from);
+                        replyJson3.add("info", infoJson);
+
+                        Timestamp current_timestamp = new Timestamp(System.currentTimeMillis());
+                        infoJson.addProperty("timestamp", current_timestamp.getTime());
+                        replyJson3.add("info", infoJson);
+
+                        infoJson.addProperty("message", emessage);
+                        replyJson3.add("info", infoJson);
+
+                        infoJson.addProperty("proof", "proof");
+                        replyJson3.add("info", infoJson);
+                        serverData = replyJson3.toString().getBytes();  
+
+                    }
                 break;
+
                 default:
                     System.out.println("----------------------------------------");
                     System.out.println("An Error Occured Communication With The Server.\n");
@@ -495,7 +597,7 @@ public class SecureServer extends Thread {
             System.out.println("-------------------------------------");
             System.out.println("Response message: " + replyJson);
             System.out.println("-------------------------------------");
-            byte[] serverData = replyJson.toString().getBytes();
+            //byte[] serverData = replyJson.toString().getBytes();
 
             //--------------------------------------------------------- //
             //              [Cipher Data: Confidentiality]              //
@@ -741,13 +843,6 @@ public class SecureServer extends Thread {
             }
 
 
-            System.out.println("-------------------------------------");
-            System.out.println("Json Received From Server: ");
-            System.out.println("witness: " + witness);
-            System.out.println("signature: " + signature);
-            System.out.println("-------------------------------------");
-
-
 
             // ---------------------------------------------------------------- //
             // Server knows all client public keys
@@ -786,10 +881,10 @@ public class SecureServer extends Thread {
 
                 proofDecipheredBytesB64 = cipher_asym.doFinal(signatureBytes);     
                 proofDecipheredStringB64 = new String(proofDecipheredBytesB64);
-
+                
                 proofDecipheredBytes =  Base64.getMimeDecoder().decode(proofDecipheredStringB64);
                 proofDecipheredString = new String(proofDecipheredBytes);
-                System.err.println("Proof Deciphered!!!!" + proofDecipheredString + " .\n"); 
+
 
             
                 
@@ -797,6 +892,14 @@ public class SecureServer extends Thread {
             catch (Exception ex) {  
                 System.err.println("Error Deciphering Client Signature.\n");
             }
+
+            System.out.println("-------------------------------------");
+            System.out.println("Proof Received");
+            System.out.println("witness: " + witness);
+            System.out.println("signature: " + signature);
+            System.out.println("proof: " + proofDecipheredString);
+            System.out.println("proofB64: " + proofDecipheredStringB64);
+            System.out.println("-------------------------------------");
                 
 
 
@@ -841,6 +944,67 @@ public class SecureServer extends Thread {
     }
 
 
+    public static boolean check_free(String epoch, String prover, String pos){
+        String fileName = "epoch"+epoch+".txt";
+        try{
+            File epochFile = new File(fileName);
+            Scanner myReader = new Scanner(epochFile);
+            while (myReader.hasNextLine()) {
+                String data[] = myReader.nextLine().split(" ");
+                if (data[0].equals(prover) && data[1] != pos) {
+                    return false;
+                }
+            }
+            myReader.close();
+        } catch (IOException e) {
+        System.out.println("ClientListener exception: " + e.getMessage());
+        e.printStackTrace();
+        }
+        return true;
+    }        
+    
+    public static String lookforReport(String filename, String prover){
+        String fileName = filename;
+        try{
+            File epochFile = new File(fileName);
+            Scanner myReader = new Scanner(epochFile);
+            while (myReader.hasNextLine()) {
+                String data[] = myReader.nextLine().split(" ");
+                if (data[0].equals(prover) || data[0].startsWith("SU_")) {
+                    return prover+ " " +data[1];
+                }
+                else{
+                    return "Report not found";
+                }
+            }
+            myReader.close();
+        } catch (IOException e) {
+        System.out.println("ClientListener exception: " + e.getMessage());
+        e.printStackTrace();
+        }
+        return "Report not found";
+    }
+    public static String lookforUsers(String filename, String position){
+        String fileName = filename;
+        String res = "";
+        try{
+            File epochFile = new File(fileName);
+            Scanner myReader = new Scanner(epochFile);
+            while (myReader.hasNextLine()) {
+                String data[] = myReader.nextLine().split(" ");
+                if (data[1].equals(position)) {
+                    res = res + data[0]+ ", ";
+                }
+            }
+            myReader.close();
+        } catch (IOException e) {
+        System.out.println("ClientListener exception: " + e.getMessage());
+        e.printStackTrace();
+        }
+        return res;
+    }
+
+
     //----------------------------------------------------- //
     //              [Key Reading Functions]                 //
     //----------------------------------------------------- //
@@ -873,6 +1037,43 @@ public class SecureServer extends Thread {
         KeyFactory keyFacPriv = KeyFactory.getInstance("RSA");
         PrivateKey priv = keyFacPriv.generatePrivate(privSpec);
         return priv;
+    }
+
+    //----------------------------------------------------- //
+    //             [Function To Create a JSON]              //
+    //----------------------------------------------------- //
+    private static JsonObject createJsonMessage(String userID, String serverMessage){
+        
+        
+        JsonParser parser = new JsonParser();
+        JsonObject requestJson = parser.parse​("{}").getAsJsonObject();
+        {
+            JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+            infoJson.addProperty("from", "Server");
+            requestJson.add("info", infoJson);
+            
+            infoJson.addProperty("to", userID);
+            requestJson.add("info", infoJson);
+
+            Timestamp timestamp = new Timestamp(System.currentTimeMillis());
+            infoJson.addProperty("timestamp", timestamp.getTime());
+            requestJson.add("info", infoJson);
+
+            infoJson.addProperty("message", serverMessage);
+            requestJson.add("info", infoJson);
+
+            infoJson.addProperty("proof", "Suposto proof");
+            requestJson.add("info", infoJson);
+
+        }
+
+
+        System.out.println("-------------------------------------");
+        System.out.println("Request message: " + requestJson);
+        System.out.println("-------------------------------------");
+        
+        return requestJson;
+        
     }
 
 

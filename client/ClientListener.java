@@ -65,6 +65,8 @@ public class ClientListener extends Thread {
             // ------------------------------------------------ //
             // Put Whatever You Want On the String Proof!
             String proof = "Proof";
+
+            
             String proofSigned = signProof(proof, port);
             sender.println(proofSigned);
             return true;

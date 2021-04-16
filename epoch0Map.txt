@@ -1,0 +1,9 @@
+SU_joe 1 2
+oliver 2 2
+oliver 1 3
+SU_paul 1 1
+mary 1 2
+george 1 3
+john 1 1
+mary 1 2
+george 1 3

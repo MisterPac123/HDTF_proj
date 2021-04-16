@@ -99,6 +99,7 @@ public class ClientServerCommunication {
         {
             JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
             infoJson.addProperty("from", this.userPort);
+            
             startCommunicationRequestJson.add("info", infoJson);
             
             infoJson.addProperty("to", "Server");
