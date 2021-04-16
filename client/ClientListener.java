@@ -21,6 +21,7 @@ public class ClientListener extends Thread {
     public void run() {
         
         while (true) {
+
             try (ServerSocket serverSocket = new ServerSocket(port)) {
                 System.out.println("Client is listening on port " + port);
                 this.socket = serverSocket.accept();
@@ -39,6 +40,7 @@ public class ClientListener extends Thread {
                         case "requestLocationProof":
                             if (handleRequestLocationProof(sender, port)) {
                                 System.out.println("Proof sent");
+                                System.out.println("Choose option:\n     1 - Request Location Proof\n     2 - add Location\n     3 - ObtainLocationReport\n     4 - ObtainUsersAtLocation(HA user only)\n     5 - Exit\n");
                             }
                             break;
                     }
