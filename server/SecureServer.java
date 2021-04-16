@@ -498,12 +498,10 @@ public class SecureServer extends Thread {
                         if(epochFile.exists()){
                             fresh_report = check_free(split[2], split[1], split[3]);
                         }
-                        else{
-
-                        }
                         if(fresh_report || epochFile.exists()==false){
                             FileWriter database = new FileWriter(fileName, true);
-                            database.write(split[1] + " " + split[3] + "\n");// POR TUDO
+                            System.out.println(clientMessage);
+                            database.write(split[1] + " " + split[3] + "\n");
                             database.close();
                             System.out.println("Report submitted!");
                             emessage = "Report submited!";
@@ -525,9 +523,6 @@ public class SecureServer extends Thread {
                     String fileName = epochF+split[2]+".txt";
                     File epochFile = new File(fileName);
                     if(epochFile.exists()){
-                        System.out.println("==============================================================\n");
-                        System.out.println("from\n" + from);
-                        System.out.println("split[1]\n" + split[1]);
 
                         emessage = lookforReport(fileName, from, split[1]);
                     }
@@ -947,9 +942,6 @@ public class SecureServer extends Thread {
             Scanner myReader = new Scanner(epochFile);
             while (myReader.hasNextLine()) {
                 String data[] = myReader.nextLine().split(" ");
-                System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
-                System.out.println("prover" + prover);
-                System.out.println("data[0]" + data[0]);
                 if (user.equals(prover) || prover.startsWith("SU_")) {
                     return user + " " +data[1];
                 }
@@ -959,7 +951,7 @@ public class SecureServer extends Thread {
         System.out.println("ClientListener exception: " + e.getMessage());
         e.printStackTrace();
         }
-        return "Report not found";
+        return "Report not found / Access Denied";
     }
     public static String lookforUsers(String filename, String position){
         String fileName = filename;
@@ -1039,7 +1031,7 @@ public class SecureServer extends Thread {
             infoJson.addProperty("message", serverMessage);
             requestJson.add("info", infoJson);
 
-            infoJson.addProperty("proof", "Suposto proof");
+            infoJson.addProperty("proof", "");
             requestJson.add("info", infoJson);
 
         }

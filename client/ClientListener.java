@@ -86,17 +86,18 @@ public class ClientListener extends Thread {
 
     public static String signProof(String proof, int port){
 
-        System.out.println("----------------------------------------");
-        System.out.println("signProof\n");
-        System.out.println(port);
-        System.out.println("I AM A WITNESS AND I WILL SIGN THE PROOF\n");
-        System.out.println("----------------------------------------");
-
 
         ClientWitness clientWitness = new ClientWitness(port);
         String proofSigned = clientWitness.generateSinature(proof);
+
+
+        System.out.println("----------------------------------------------------");
+        System.out.println("I am a witnes at port " + port + " and I will sign a proof");
+        System.out.println("This is my signature:\n" + proofSigned);
+        System.out.println("----------------------------------------------------");
+
         return proofSigned;
-        
+
     };
 
 

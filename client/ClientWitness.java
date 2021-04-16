@@ -32,11 +32,6 @@ public class ClientWitness {
     // =============================================================================== //
 
     public static String generateSinature(String proof){
-        System.out.println("----------------------------------------");
-        System.out.println("signProof\n");
-        System.out.println(witnessPort);
-        System.out.println("I AM A WITNESS AND I WILL SIGN THE PROOF\n");
-        System.out.println("----------------------------------------");
 
 
         PrivateKey rsaUserPrivKey = null; 
