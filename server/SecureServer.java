@@ -871,7 +871,7 @@ public class SecureServer extends Thread {
                 
             }
             catch (Exception ex) {  
-                System.err.println("Error Deciphering Client Signature.\n");
+                System.err.println("Error Deciphering Client Signature. Data Tampered.\n");
             }
 
             System.out.println("-------------------------------------");
@@ -882,14 +882,7 @@ public class SecureServer extends Thread {
             System.out.println("proofB64: " + proofDecipheredStringB64);
             System.out.println("-------------------------------------");
                 
-
-
         }
-
-
-        System.out.println("----------------------------------------");
-
-
 
         return true;
     }
