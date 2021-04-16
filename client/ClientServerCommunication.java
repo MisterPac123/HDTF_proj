@@ -94,12 +94,16 @@ public class ClientServerCommunication {
 
         JsonParser parser = new JsonParser();
 
-        String clientRequestString = "Hey I am at: " + this.userPort+ " and I Want To Start A Connection.";
+        String clientRequestString = "Hey I am " + this.userID + " at: " + this.userPort + 
+        " and I Want To Start A Secure Connection With Server.";
         JsonObject startCommunicationRequestJson = parser.parse​("{}").getAsJsonObject();
         {
             JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
-            infoJson.addProperty("from", this.userPort);
-            
+
+            infoJson.addProperty("userPort", this.userPort);
+            startCommunicationRequestJson.add("info", infoJson);
+
+            infoJson.addProperty("from", this.userID);
             startCommunicationRequestJson.add("info", infoJson);
             
             infoJson.addProperty("to", "Server");
@@ -174,11 +178,12 @@ public class ClientServerCommunication {
        
         JsonObject startReplyStringJSON = parser.parse​(startReplyString).getAsJsonObject();
         
-        String from = null, to = null, timestampReceived = null, startMessage = null;
+        String from = null, fromPort = null, to = null, timestampReceived = null, startMessage = null;
         {
             JsonObject infoJson = startReplyStringJSON.getAsJsonObject("info");
             timestampReceived = infoJson.get("timestamp").getAsString();
             from = infoJson.get("from").getAsString();
+            fromPort = infoJson.get("userPort").getAsString();
             to = infoJson.get("to").getAsString();
             startMessage = infoJson.get("message").getAsString();
 
@@ -214,8 +219,14 @@ public class ClientServerCommunication {
         JsonObject requestJson = parser.parse​("{}").getAsJsonObject();
         {
             JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
-            infoJson.addProperty("from", this.userPort);
+            
+
+            infoJson.addProperty("from", this.userID);
             requestJson.add("info", infoJson);
+
+
+            //infoJson.addProperty("userPort", this.userPort);
+            //requestJson.add("info", infoJson);
             
             infoJson.addProperty("to", "Server");
             requestJson.add("info", infoJson);
@@ -512,13 +523,14 @@ public class ClientServerCommunication {
 
         JsonObject cm_json = parser.parse​(message_response).getAsJsonObject();
         
-        from = null; to = null; timestampReceived = null; String serverMessage = null;
+        from = null; to = null; String toPort = null; timestampReceived = null; String serverMessage = null;
         {
             JsonObject infoJson = cm_json.getAsJsonObject("info");
             timestampReceived = infoJson.get("timestamp").getAsString();
             
 
             from = infoJson.get("from").getAsString();
+            //toPort = infoJson.get("userPort").getAsString();
             to = infoJson.get("to").getAsString();
             serverMessage = infoJson.get("message").getAsString();
             //proof = infoJson.get("proof").getAsString();
@@ -530,6 +542,7 @@ public class ClientServerCommunication {
         System.out.println("Json Received From Server: ");
         System.out.println("from: " + from);
         System.out.println("to: " + to);
+        //System.out.println("userPort: " + toPort);
         System.out.println("timestamp: " + timestampReceived);
         System.out.println("message: " + serverMessage);
         System.out.println("-------------------------------------");

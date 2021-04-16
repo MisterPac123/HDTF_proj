@@ -96,4 +96,31 @@ public class Map {
         return ports;
     }
 
+    public boolean duplicateEntry(String userID, int AxisX, int AxisY, int epoch){
+        try {
+            
+            String fileName = "epoch"+epoch+"Map.txt";
+            File map = new File(fileName);
+
+            if(map.exists()){
+                Scanner myReader = new Scanner(map);
+                while (myReader.hasNextLine()) {
+                    String[] data = myReader.nextLine().split(" ");
+                        if (data[0].equals(userID) && Integer.parseInt(data[1]) == AxisX && Integer.parseInt(data[2]) == AxisY) {
+                            return false;
+                        }
+                }
+                myReader.close();
+
+            }
+            else{
+                return true;
+            }
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        return true;
+    }
+
 }

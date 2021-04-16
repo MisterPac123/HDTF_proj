@@ -156,12 +156,14 @@ public class SecureServer extends Thread {
             JsonObject startRequestStringJSON = parser.parse​(startRequestString).getAsJsonObject();
             
             String from = null, to = null, timestampReceived = null, startMessage = null;
+            String userPort = null;
             {
                 JsonObject infoJson = startRequestStringJSON.getAsJsonObject("info");
                 timestampReceived = infoJson.get("timestamp").getAsString();
                 from = infoJson.get("from").getAsString();
                 to = infoJson.get("to").getAsString();
                 startMessage = infoJson.get("message").getAsString();
+                userPort = infoJson.get("userPort").getAsString();
 
             }           
 
@@ -172,8 +174,11 @@ public class SecureServer extends Thread {
             this.serverPrivateKeypath = "keys/private/server/server_priv.key";
             this.serverPublicKeypath = "keys/shared/server/server_pub.key";
 
-            this.clientPublicKeypath = "keys/shared/" + from + "/client_pub.key";
-            this.symmetricKeyPath = "keys/shared/" + from + "/aes.key";
+            //this.clientPublicKeypath = "keys/shared/" + from + "/client_pub.key";
+            //this.symmetricKeyPath = "keys/shared/" + from + "/aes.key";
+
+            this.clientPublicKeypath = "keys/shared/" + userPort + "/client_pub.key";
+            this.symmetricKeyPath = "keys/shared/" + userPort + "/aes.key";
 
             try{
 
@@ -198,10 +203,15 @@ public class SecureServer extends Thread {
             JsonObject startCommunicationReplyJson = parser.parse​("{}").getAsJsonObject();
             {
                 JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
+
+
                 infoJson.addProperty("from", "Server");
                 startCommunicationReplyJson.add("info", infoJson);
                 
                 infoJson.addProperty("to", from);
+                startCommunicationReplyJson.add("info", infoJson);
+
+                infoJson.addProperty("userPort", userPort);
                 startCommunicationReplyJson.add("info", infoJson);
 
                 Timestamp timestamp = new Timestamp(System.currentTimeMillis());
@@ -234,6 +244,7 @@ public class SecureServer extends Thread {
                 return;
             } 
 
+
             //====================================================== //
             //====================================================== //
             //          [Starting Secure Communication]              //
@@ -245,6 +256,9 @@ public class SecureServer extends Thread {
             "==================================================\n");
             System.out.println("[Starting Secure Communication]\n");
 
+            System.out.println("Server Started A Secure Communication with Client: " 
+                + from + ":" + userPort + "\n");
+            
             System.out.println(
             "=================================================="+ 
             "==================================================\n");
@@ -359,12 +373,13 @@ public class SecureServer extends Thread {
 
             JsonObject cm_json = parser.parse​(message).getAsJsonObject();
             
-            from = null; to = null; timestampReceived = null; String clientMessage = null; String proofs = null;
+            from = null; userPort = null; to = null; timestampReceived = null; String clientMessage = null; String proofs = null;
             {
                 JsonObject infoJson = cm_json.getAsJsonObject("info");
 
                 from = infoJson.get("from").getAsString();
                 to = infoJson.get("to").getAsString();
+                //userPort = infoJson.get("userPort").getAsString();
 
                 timestampReceived = infoJson.get("timestamp").getAsString();
                 clientMessage = infoJson.get("message").getAsString();
@@ -472,7 +487,7 @@ public class SecureServer extends Thread {
                     
                     if(handle_submitLocationReport(proofs)){
                         System.out.println("Proofs Processed Sucessfully");
-                        replyJson  = submitLocationReportReply(from, to);
+                        replyJson  = submitLocationReportReply(from, to, userPort);
 
                     }
 
@@ -510,34 +525,19 @@ public class SecureServer extends Thread {
                     String fileName = epochF+split[2]+".txt";
                     File epochFile = new File(fileName);
                     if(epochFile.exists()){
-                        emessage = lookforReport(fileName, split[1]);
+                        System.out.println("==============================================================\n");
+                        System.out.println("from\n" + from);
+                        System.out.println("split[1]\n" + split[1]);
+
+                        emessage = lookforReport(fileName, from, split[1]);
                     }
                     else{
                         emessage = "Location not available";
                     }
                     
-                        
-                    String proof = "2 " + from + "location" + "witness" + "location witness";
-                    JsonObject replyJson2 = parser.parse​("{}").getAsJsonObject();
-                    {
-                        JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
-                        infoJson.addProperty("from", "Server");
-                        replyJson2.add("info", infoJson);
-                        
-                        infoJson.addProperty("to", from);
-                        replyJson2.add("info", infoJson);
+                    replyJson = createJsonMessage(from, emessage); 
+                    serverData = replyJson.toString().getBytes();
 
-                        Timestamp current_timestamp = new Timestamp(System.currentTimeMillis());
-                        infoJson.addProperty("timestamp", current_timestamp.getTime());
-                        replyJson2.add("info", infoJson);
-
-                        infoJson.addProperty("message", emessage);
-                        replyJson2.add("info", infoJson);
-
-                        infoJson.addProperty("proof", proof);
-                        replyJson2.add("info", infoJson);
-                        serverData = replyJson2.toString().getBytes();
-                    }
                     break;
 
                 case "obtainUsersAtLocation"://obtainUsersAtLocation position epoch
@@ -549,28 +549,9 @@ public class SecureServer extends Thread {
                     else{
                         emessage = "Permission denied!";
                     }
+                    replyJson = createJsonMessage(from, emessage); 
+                    serverData = replyJson.toString().getBytes();
                     
-                    JsonObject replyJson3 = parser.parse​("{}").getAsJsonObject();
-                    {
-                        JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
-                        infoJson.addProperty("from", "Server");
-                        replyJson3.add("info", infoJson);
-                        
-                        infoJson.addProperty("to", from);
-                        replyJson3.add("info", infoJson);
-
-                        Timestamp current_timestamp = new Timestamp(System.currentTimeMillis());
-                        infoJson.addProperty("timestamp", current_timestamp.getTime());
-                        replyJson3.add("info", infoJson);
-
-                        infoJson.addProperty("message", emessage);
-                        replyJson3.add("info", infoJson);
-
-                        infoJson.addProperty("proof", "proof");
-                        replyJson3.add("info", infoJson);
-                        serverData = replyJson3.toString().getBytes();  
-
-                    }
                 break;
 
                 default:
@@ -912,7 +893,7 @@ public class SecureServer extends Thread {
 
         return true;
     }
-    public JsonObject submitLocationReportReply(String from, String to){
+    public JsonObject submitLocationReportReply(String from, String to, String toPort){
         //----------------------------------------------------- //
         //              [Create Response Message ]              //
         // Might be useful to have a funcion to search for a    //
@@ -926,7 +907,10 @@ public class SecureServer extends Thread {
             JsonObject infoJson = parser.parse​("{}").getAsJsonObject();
             infoJson.addProperty("from", to);
             replyJson.add("info", infoJson);
-            
+
+            //infoJson.addProperty("userPort", toPort);
+            //replyJson.add("info", infoJson);
+
             infoJson.addProperty("to", from);
             replyJson.add("info", infoJson);
 
@@ -963,18 +947,18 @@ public class SecureServer extends Thread {
         return true;
     }        
     
-    public static String lookforReport(String filename, String prover){
+    public static String lookforReport(String filename, String prover, String user){
         String fileName = filename;
         try{
             File epochFile = new File(fileName);
             Scanner myReader = new Scanner(epochFile);
             while (myReader.hasNextLine()) {
                 String data[] = myReader.nextLine().split(" ");
-                if (data[0].equals(prover) || data[0].startsWith("SU_")) {
-                    return prover+ " " +data[1];
-                }
-                else{
-                    return "Report not found";
+                System.out.println("+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++");
+                System.out.println("prover" + prover);
+                System.out.println("data[0]" + data[0]);
+                if (user.equals(prover) || prover.startsWith("SU_")) {
+                    return user + " " +data[1];
                 }
             }
             myReader.close();

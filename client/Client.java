@@ -113,7 +113,7 @@ public class Client {
                             // ----------------------------------------------- //
                             
                             if(proofs.size() > 0){
-                                submitLocationReport(port, proofs);
+                                submitLocationReport(port, epoch, proofs);
                                 break;
                             }
                             //submitLocationReport(userId, ep, report, …)
@@ -224,9 +224,13 @@ public class Client {
 
     private static void addLocation(int epoch, int axisX, int axisY) throws IOException {
         Map map= new Map();
-        map.addPosition(userID, epoch, axisX, axisY);
+        if(map.duplicateEntry(userID, axisX, axisY, epoch)){
+            map.addPosition(userID, epoch, axisX, axisY);
+        }
+        else{
+            System.out.println("Duplicate location, try again");
+        }
     }
-
 
     //#########################
     //## Secondary functions ##
@@ -253,16 +257,22 @@ public class Client {
 
 
 
-    private static void submitLocationReport(int port, List<String> proofs ) throws IOException {
+    private static void submitLocationReport(int port, int epoch, List<String> proofs ) throws IOException {
 
         for(int i = 0; i < proofs.size(); i++) {
             System.out.println(proofs.get(i));
         }
 
+        String pos = findUserLocation(epoch, userID);
+        if(pos == "Location not defined"){
+            System.out.println(pos + ", try add Location first");
+            return;
+        }
         // ----------------------------------------------------------------- //
         //                  Client Server Comunication Init
         // ----------------------------------------------------------------- //
-        String clientRequest = "submitLocationReport " + userID +" 1 " + "(2,2)";
+        String clientRequest = "submitLocationReport " + userID +" "+ epoch +" "+ pos;
+
 
         ClientServerCommunication clientServerCommunication = 
         new ClientServerCommunication(userID, port,
@@ -311,6 +321,26 @@ public class Client {
     }
 
 
+    public static String findUserLocation(int epoch, String userID){
+            try{
+                String fileName = "epoch"+epoch+"Map.txt";
+                File map = new File(fileName);
+                Scanner myReader = new Scanner(map);
+                while (myReader.hasNextLine()) {
+                    String[] data = myReader.nextLine().split(" ");
+                        if (data[0].equals(userID)) {
+                            return "("+data[1]+","+data[2]+")";
+                        }
+                }
+                myReader.close();
+            } 
+            catch (FileNotFoundException e) {
+                e.printStackTrace();
+            }
+            return "Location not defined"; 
+        
+    }
+
     public static boolean addUser(String userID, int port, String type){
         try {//Check if user is already in the file, or if it is with the same port, or if already exists a super user
             boolean newClient = true;
@@ -356,4 +386,6 @@ public class Client {
         }
         return false;
     }
+
+
 }
